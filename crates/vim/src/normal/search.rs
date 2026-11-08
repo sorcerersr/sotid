@@ -366,10 +366,10 @@ impl Vim {
             self.switch_mode(prior_mode, true, window, cx);
         }
         if let Some(operator) = prior_operator {
-            self.push_operator(operator, window, cx);
+            self.push_operator(operator, cx);
         };
         self.search_motion(
-            Motion::ZedSearchResult {
+            Motion::SearchResult {
                 prior_selections,
                 new_selections,
             },
@@ -395,7 +395,7 @@ impl Vim {
             if self.mode.is_visual() {
                 self.switch_mode(Mode::Normal, false, window, cx);
             }
-            self.sync_vim_settings(window, cx);
+            self.sync_vim_settings(cx);
         }
 
         let prior_selections = self.editor_selections(window, cx);
@@ -418,7 +418,7 @@ impl Vim {
 
         let new_selections = self.editor_selections(window, cx);
         self.search_motion(
-            Motion::ZedSearchResult {
+            Motion::SearchResult {
                 prior_selections,
                 new_selections,
             },
@@ -448,7 +448,7 @@ impl Vim {
             if self.mode.is_visual() {
                 self.switch_mode(Mode::Normal, false, window, cx);
             }
-            self.sync_vim_settings(window, cx);
+            self.sync_vim_settings(cx);
         }
 
         let prior_selections = self.editor_selections(window, cx);
@@ -498,7 +498,7 @@ impl Vim {
                         vim.update(cx, |vim, cx| {
                             let new_selections = vim.editor_selections(window, cx);
                             vim.search_motion(
-                                Motion::ZedSearchResult {
+                                Motion::SearchResult {
                                     prior_selections,
                                     new_selections,
                                 },
@@ -514,7 +514,7 @@ impl Vim {
             true
         });
         if !searched {
-            self.clear_operator(window, cx)
+            self.clear_operator(cx)
         }
 
         if self.mode.is_visual() {

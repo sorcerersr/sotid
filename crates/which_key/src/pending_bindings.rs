@@ -460,23 +460,23 @@ mod tests {
         ];
         for bindings in [
             vec![
-                KeyBinding::new("cmd-k cmd-s", zed_actions::OpenKeymap, Some("Workspace"))
+                KeyBinding::new("cmd-k cmd-s", sotid_actions::OpenKeymap, Some("Workspace"))
                     .with_meta(KeybindSource::User.meta()),
-                KeyBinding::new("cmd-k cmd-s", zed_actions::OpenSettings, Some("Workspace"))
+                KeyBinding::new("cmd-k cmd-s", sotid_actions::OpenSettings, Some("Workspace"))
                     .with_meta(KeybindSource::User.meta()),
             ],
             vec![
-                KeyBinding::new("cmd-k cmd-s", zed_actions::OpenSettings, Some("Editor"))
+                KeyBinding::new("cmd-k cmd-s", sotid_actions::OpenSettings, Some("Editor"))
                     .with_meta(KeybindSource::Default.meta()),
-                KeyBinding::new("cmd-k cmd-s", zed_actions::OpenKeymap, Some("Workspace"))
+                KeyBinding::new("cmd-k cmd-s", sotid_actions::OpenKeymap, Some("Workspace"))
                     .with_meta(KeybindSource::User.meta()),
             ],
             vec![
-                KeyBinding::new("cmd-k cmd-s", zed_actions::OpenKeymap, Some("Workspace"))
+                KeyBinding::new("cmd-k cmd-s", sotid_actions::OpenKeymap, Some("Workspace"))
                     .with_meta(KeybindSource::Default.meta()),
                 KeyBinding::load(
                     "cmd-k cmd-s",
-                    Box::new(zed_actions::OpenSettings),
+                    Box::new(sotid_actions::OpenSettings),
                     Some(
                         gpui::KeyBindingContextPredicate::parse("Workspace")
                             .expect("valid context")
@@ -495,7 +495,7 @@ mod tests {
             let first_match = matches.first().expect("matching binding");
             assert_eq!(
                 first_match.action().name(),
-                zed_actions::OpenSettings.name()
+                sotid_actions::OpenSettings.name()
             );
 
             let candidates = keymap.possible_next_bindings_for_input(&input[..1], &contexts);
@@ -505,8 +505,8 @@ mod tests {
                     .map(|binding| binding.action().name())
                     .collect::<Vec<_>>(),
                 vec![
-                    zed_actions::OpenSettings.name(),
-                    zed_actions::OpenKeymap.name()
+                    sotid_actions::OpenSettings.name(),
+                    sotid_actions::OpenKeymap.name()
                 ],
             );
             let pending = candidates
@@ -711,13 +711,13 @@ mod tests {
             KeyContext::parse("Editor").expect("valid context"),
         ];
         let keymap = Keymap::new(vec![
-            KeyBinding::new("cmd-k cmd-s", zed_actions::OpenKeymap, Some("Workspace")),
+            KeyBinding::new("cmd-k cmd-s", sotid_actions::OpenKeymap, Some("Workspace")),
             KeyBinding::new(
                 "cmd-k cmd-s cmd-,",
-                zed_actions::OpenKeymapFile,
+                sotid_actions::OpenKeymapFile,
                 Some("Workspace"),
             ),
-            KeyBinding::new("cmd-k cmd-s", zed_actions::OpenSettings, Some("Editor")),
+            KeyBinding::new("cmd-k cmd-s", sotid_actions::OpenSettings, Some("Editor")),
         ]);
         let input = [
             Keystroke::parse("cmd-k").expect("valid keystroke"),
@@ -728,7 +728,7 @@ mod tests {
         let first_match = matches.first().expect("matching binding");
         assert_eq!(
             first_match.action().name(),
-            zed_actions::OpenSettings.name()
+            sotid_actions::OpenSettings.name()
         );
 
         // The longer chord comes between the two cmd-k cmd-s bindings, so they aren't adjacent.
@@ -739,9 +739,9 @@ mod tests {
                 .map(|binding| binding.action().name())
                 .collect::<Vec<_>>(),
             vec![
-                zed_actions::OpenSettings.name(),
-                zed_actions::OpenKeymapFile.name(),
-                zed_actions::OpenKeymap.name(),
+                sotid_actions::OpenSettings.name(),
+                sotid_actions::OpenKeymapFile.name(),
+                sotid_actions::OpenKeymap.name(),
             ],
         );
 
@@ -769,7 +769,7 @@ mod tests {
                 ),
                 (
                     parse_keystrokes("cmd-s cmd-,"),
-                    command_palette::humanize_action_name(zed_actions::OpenKeymapFile.name()),
+                    command_palette::humanize_action_name(sotid_actions::OpenKeymapFile.name()),
                     false,
                 ),
             ],

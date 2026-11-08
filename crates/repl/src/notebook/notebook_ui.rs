@@ -3,7 +3,7 @@ use std::future::Future;
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context as _, Result};
-use client::proto::ViewId;
+use proto::ViewId;
 use collections::HashMap;
 use editor::DisplayPoint;
 use feature_flags::{FeatureFlagAppExt as _, NotebookFeatureFlag};
@@ -41,8 +41,8 @@ use crate::repl_store::ReplStore;
 use picker::Picker;
 use runtimelib::{ExecuteRequest, JupyterMessage, JupyterMessageContent};
 use ui::PopoverMenuHandle;
-use zed_actions::editor::{MoveDown, MoveUp};
-use zed_actions::notebook::{
+use sotid_actions::editor::{MoveDown, MoveUp};
+use sotid_actions::notebook::{
     AddCodeBlock, AddMarkdownBlock, ClearOutputs, DeleteCell, EnterCommandMode, EnterEditMode,
     InterruptKernel, MoveCellDown, MoveCellUp, NotebookMoveDown, NotebookMoveUp, OpenNotebook,
     RestartKernel, Run, RunAll, RunAndAdvance,
@@ -82,7 +82,7 @@ pub fn init(cx: &mut App) {
                 workspace::register_project_item::<NotebookEditor>(cx);
             } else {
                 // todo: there is no way to unregister a project item, so if the feature flag
-                // gets turned off they need to restart Zed.
+                // gets turned off they need to restart Sotid.
             }
         }
     })

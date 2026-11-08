@@ -1869,7 +1869,7 @@ mod tests {
                 .read(cx)
                 .snapshot(cx)
                 .anchor_before(Point::new(50, 0));
-            editor.set_scroll_anchor_remote(
+            editor.set_scroll_anchor(
                 ScrollAnchor {
                     offset: gpui::Point::default(),
                     anchor,

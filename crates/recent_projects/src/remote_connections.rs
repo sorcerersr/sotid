@@ -46,7 +46,6 @@ impl RemoteSettings {
         for conn in self.ssh_connections() {
             if conn.host == host && conn.username == options.username && conn.port == options.port {
                 options.nickname = conn.nickname;
-                options.upload_binary_over_ssh = conn.upload_binary_over_ssh.unwrap_or_default();
                 options.args = Some(conn.args);
                 options.port_forwards = conn.port_forwards;
                 break;
@@ -217,9 +216,7 @@ pub async fn open_remote_project(
 
         let window = cx.open_window(options, |window, cx| {
             let project = project::Project::local(
-                app_state.client.clone(),
                 app_state.node_runtime.clone(),
-                app_state.user_store.clone(),
                 app_state.languages.clone(),
                 app_state.fs.clone(),
                 None,
@@ -691,9 +688,7 @@ mod tests {
         let other_project = cx.update(|cx| {
             Project::remote(
                 other_remote_client,
-                app_state.client.clone(),
                 app_state.node_runtime.clone(),
-                app_state.user_store.clone(),
                 app_state.languages.clone(),
                 app_state.fs.clone(),
                 false,

@@ -11,7 +11,7 @@ use ui::{
     h_flex, px, v_flex,
 };
 use workspace::{Item, SplitDirection, Workspace};
-use zed_actions::dev::OpenKeyContextView;
+use sotid_actions::dev::OpenKeyContextView;
 
 pub fn init(cx: &mut App) {
     cx.observe_new(|workspace: &mut Workspace, _, _| {
@@ -146,9 +146,6 @@ impl Item for KeyContextView {
         "Keyboard Context".into()
     }
 
-    fn telemetry_event_text(&self) -> Option<&'static str> {
-        None
-    }
 
     fn can_split(&self) -> bool {
         true
@@ -198,7 +195,7 @@ impl Render for KeyContextView {
                 }),
             )
             .child(Label::new("Keyboard Context").size(LabelSize::Large))
-            .child(Label::new("This view lets you determine the current context stack for creating custom key bindings in Zed. When a keyboard shortcut is triggered, it also shows all the possible contexts it could have triggered in, and which one matched."))
+            .child(Label::new("This view lets you determine the current context stack for creating custom key bindings in Sotid. When a keyboard shortcut is triggered, it also shows all the possible contexts it could have triggered in, and which one matched."))
             .child(
                 h_flex()
                     .mt_4()
@@ -212,19 +209,19 @@ impl Render for KeyContextView {
                         Button::new("view_default_keymap", "View Default Keymap")
                             .style(ButtonStyle::Filled)
                             .key_binding(ui::KeyBinding::for_action(
-                                &zed_actions::OpenDefaultKeymap,
+                                &sotid_actions::OpenDefaultKeymap,
                                 cx
                             ))
                             .on_click(|_, window, cx| {
-                                window.dispatch_action(zed_actions::OpenDefaultKeymap.boxed_clone(), cx);
+                                window.dispatch_action(sotid_actions::OpenDefaultKeymap.boxed_clone(), cx);
                             }),
                     )
                     .child(
                         Button::new("edit_your_keymap", "Edit Keymap File")
                             .style(ButtonStyle::Filled)
-                            .key_binding(ui::KeyBinding::for_action(&zed_actions::OpenKeymapFile, cx))
+                            .key_binding(ui::KeyBinding::for_action(&sotid_actions::OpenKeymapFile, cx))
                             .on_click(|_, window, cx| {
-                                window.dispatch_action(zed_actions::OpenKeymapFile.boxed_clone(), cx);
+                                window.dispatch_action(sotid_actions::OpenKeymapFile.boxed_clone(), cx);
                             }),
                     ),
             )

@@ -1,12 +1,12 @@
 #![allow(clippy::disallowed_methods, reason = "build scripts are exempt")]
 use std::process::Command;
 
-const ZED_MANIFEST: &str = include_str!("../zed/Cargo.toml");
+const SOTID_MANIFEST: &str = include_str!("../sotid/Cargo.toml");
 
 fn main() {
-    let zed_cargo_toml =
-        toml_edit::ImDocument::parse(ZED_MANIFEST).expect("failed to parse zed Cargo.toml");
-    let version = zed_cargo_toml
+    let sotid_cargo_toml =
+        toml_edit::ImDocument::parse(SOTID_MANIFEST).expect("failed to parse sotid Cargo.toml");
+    let version = sotid_cargo_toml
         .get("package")
         .and_then(|package| package.get("version"))
         .and_then(toml_edit::Item::as_str)
@@ -28,9 +28,9 @@ fn main() {
         let git_sha = String::from_utf8_lossy(&output.stdout);
         let git_sha = git_sha.trim();
 
-        println!("cargo:rustc-env=ZED_COMMIT_SHA={git_sha}");
+        println!("cargo:rustc-env=SOTID_COMMIT_SHA={git_sha}");
     }
     if let Some(build_identifier) = option_env!("GITHUB_RUN_NUMBER") {
-        println!("cargo:rustc-env=ZED_BUILD_ID={build_identifier}");
+        println!("cargo:rustc-env=SOTID_BUILD_ID={build_identifier}");
     }
 }

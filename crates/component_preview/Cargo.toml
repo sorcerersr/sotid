@@ -19,14 +19,12 @@ test-support = ["db/test-support"]
 
 [dependencies]
 anyhow.workspace = true
-client.workspace = true
 collections.workspace = true
 component.workspace = true
 db.workspace = true
 gpui.workspace = true
 language.workspace = true
 log.workspace = true
-notifications.workspace = true
 project.workspace = true
 ui.workspace = true
 ui_input.workspace = true

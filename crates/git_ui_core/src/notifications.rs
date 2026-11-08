@@ -1,7 +1,7 @@
 use editor::Editor;
 use gpui::{App, Context, Entity, SharedString};
 use language::Buffer;
-use notifications::status_toast::StatusToast;
+use workspace::StatusToast;
 use proto::RpcError;
 use ui::prelude::*;
 use workspace::Workspace;

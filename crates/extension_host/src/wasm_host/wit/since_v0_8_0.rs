@@ -26,7 +26,7 @@ use std::{
     str::FromStr,
     sync::{Arc, OnceLock},
 };
-use task::{SpawnInTerminal, ZedDebugConfig};
+use task::{SpawnInTerminal, SotidDebugConfig};
 use url::Url;
 use util::{
     archive::extract_zip, fs::make_file_executable, maybe, paths::PathStyle, rel_path::RelPath,
@@ -234,8 +234,8 @@ impl From<AttachRequest> for task::AttachRequest {
     }
 }
 
-impl From<ZedDebugConfig> for DebugConfig {
-    fn from(value: ZedDebugConfig) -> Self {
+impl From<SotidDebugConfig> for DebugConfig {
+    fn from(value: SotidDebugConfig) -> Self {
         Self {
             label: value.label.into(),
             adapter: value.adapter.into(),
@@ -527,21 +527,6 @@ impl From<SlashCommandArgumentCompletion> for extension::SlashCommandArgumentCom
             new_text: value.new_text,
             run_command: value.run_command,
         }
-    }
-}
-
-impl TryFrom<ContextServerConfiguration> for extension::ContextServerConfiguration {
-    type Error = anyhow::Error;
-
-    fn try_from(value: ContextServerConfiguration) -> Result<Self, Self::Error> {
-        let settings_schema: serde_json::Value = serde_json::from_str(&value.settings_schema)
-            .context("Failed to parse settings_schema")?;
-
-        Ok(Self {
-            installation_instructions: value.installation_instructions,
-            default_settings: value.default_settings,
-            settings_schema,
-        })
     }
 }
 
@@ -922,9 +907,6 @@ impl process::Host for WasmState {
 #[async_trait]
 impl slash_command::Host for WasmState {}
 
-#[async_trait]
-impl context_server::Host for WasmState {}
-
 impl dap::Host for WasmState {
     async fn resolve_tcp_template(
         &mut self,
@@ -1003,43 +985,7 @@ impl ExtensionImports for WasmState {
                         })?)
                     }
                     "context_servers" => {
-                        let settings = key
-                            .and_then(|key| {
-                                ProjectSettings::get(location, cx)
-                                    .context_servers
-                                    .get(key.as_str())
-                            })
-                            .cloned()
-                            .unwrap_or_else(|| {
-                                project::project_settings::ContextServerSettings::default_extension(
-                                )
-                            });
-
-                        match settings {
-                            project::project_settings::ContextServerSettings::Stdio {
-                                enabled: _,
-                                command,
-                                ..
-                            } => Ok(serde_json::to_string(&settings::ContextServerSettings {
-                                command: Some(settings::CommandSettings {
-                                    path: command.path.to_str().map(|path| path.to_string()),
-                                    arguments: Some(command.args),
-                                    env: command.env.map(|env| env.into_iter().collect()),
-                                }),
-                                settings: None,
-                            })?),
-                            project::project_settings::ContextServerSettings::Extension {
-                                enabled: _,
-                                settings,
-                                ..
-                            } => Ok(serde_json::to_string(&settings::ContextServerSettings {
-                                command: None,
-                                settings: Some(settings),
-                            })?),
-                            project::project_settings::ContextServerSettings::Http { .. } => {
-                                bail!("remote context server settings not supported in 0.6.0")
-                            }
-                        }
+                        bail!("context_servers setting removed");
                     }
                     _ => {
                         bail!("Unknown settings category: {}", category);

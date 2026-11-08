@@ -48,7 +48,7 @@ use settings::Settings;
 use stack_frame_list::StackFrameList;
 use task::{
     BuildTaskDefinition, DebugScenario, SharedTaskContext, Shell, ShellBuilder, SpawnInTerminal,
-    TaskContext, ZedDebugConfig, substitute_variables_in_str,
+    TaskContext, SotidDebugConfig, substitute_variables_in_str,
 };
 use terminal_view::TerminalView;
 use ui::{
@@ -1274,7 +1274,7 @@ impl RunningState {
                     })?
                     .await?;
 
-                let zed_config = ZedDebugConfig {
+                let zed_config = SotidDebugConfig {
                     label: label.clone(),
                     adapter: adapter.clone(),
                     request,
@@ -1283,7 +1283,7 @@ impl RunningState {
 
                 let scenario = dap_registry
                     .adapter(&adapter)
-                    .with_context(|| anyhow!("{adapter}: is not a valid adapter name"))?.config_from_zed_format(zed_config)
+                    .with_context(|| anyhow!("{adapter}: is not a valid adapter name"))?.config_from_sotid_format(zed_config)
                     .await?;
                 config = scenario.config;
                 util::merge_non_null_json_value_into(extra_config, &mut config);
@@ -1293,7 +1293,7 @@ impl RunningState {
                 let Err(e) = request_type else {
                     unreachable!();
                 };
-                anyhow::bail!("Zed cannot determine how to run this debug scenario. `build` field was not provided and Debug Adapter won't accept provided configuration because: {e}");
+                anyhow::bail!("Sotid cannot determine how to run this debug scenario. `build` field was not provided and Debug Adapter won't accept provided configuration because: {e}");
             };
 
             Ok(DebugTaskDefinition {

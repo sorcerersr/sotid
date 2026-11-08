@@ -273,10 +273,10 @@ impl PasswordProxy {
         >,
         executor: BackgroundExecutor,
     ) -> Result<Self> {
-        let temp_dir = tempfile::Builder::new().prefix("zed-askpass").tempdir()?;
+        let temp_dir = tempfile::Builder::new().prefix("sotid-askpass").tempdir()?;
         let askpass_socket = temp_dir.path().join("askpass.sock");
         let current_exec =
-            std::env::current_exe().context("Failed to determine current zed executable path.")?;
+            std::env::current_exe().context("Failed to determine current sotid executable path.")?;
 
         let askpass_program = ASKPASS_PROGRAM.get_or_init(|| current_exec);
 
@@ -599,7 +599,7 @@ if {gpg_program} "$@" < "$payload" > "$signature" 2> "$status"; then
     exit 0
 fi
 
-# Stage 3: gpg cannot obtain the passphrase on its own. Ask Zed for it, then
+# Stage 3: gpg cannot obtain the passphrase on its own. Ask Sotid for it, then
 # hand it to gpg on fd 3 using loopback mode so no pinentry/terminal is
 # required.
 passphrase=$(printf '%s\0' {prompt} | {askpass_program} --askpass={askpass_socket} 2>/dev/null)

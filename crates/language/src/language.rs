@@ -29,8 +29,7 @@ pub mod buffer_tests;
 mod proto_diagnostics_tests;
 
 pub use crate::language_settings::{
-    AutoIndentMode, EditPredictionPromptFormat, EditPredictionsMode, IndentGuideSettings,
-    ZetaVersion,
+    AutoIndentMode, IndentGuideSettings,
 };
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;

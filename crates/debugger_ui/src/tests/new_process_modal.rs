@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use task::{
     DebugRequest, DebugScenario, LaunchRequest, SharedTaskContext, TaskContext, VariableName,
-    ZedDebugConfig,
+    SotidDebugConfig,
 };
 use text::Point;
 use util::path;
@@ -375,7 +375,7 @@ async fn test_dap_adapter_config_conversion_and_validation(cx: &mut TestAppConte
         registry.enumerate_adapters::<Vec<_>>()
     });
 
-    let zed_config = ZedDebugConfig {
+    let zed_config = SotidDebugConfig {
         label: "test_debug_session".into(),
         adapter: "test_adapter".into(),
         request: DebugRequest::Launch(LaunchRequest {
@@ -404,7 +404,7 @@ async fn test_dap_adapter_config_conversion_and_validation(cx: &mut TestAppConte
         adapter_specific_config.adapter = adapter_name.to_string().into();
 
         let debug_scenario = adapter
-            .config_from_zed_format(adapter_specific_config)
+            .config_from_sotid_format(adapter_specific_config)
             .await
             .unwrap_or_else(|_| {
                 panic!(

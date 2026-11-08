@@ -17,7 +17,7 @@ use gpui::{
     SharedString, Subscription, Task, TaskExt, WeakEntity, Window,
 };
 use menu::{Cancel, Confirm};
-use notifications::status_toast::StatusToast;
+use workspace::StatusToast;
 use project::git_store::Repository;
 use project_diff::ProjectDiff;
 use time::OffsetDateTime;
@@ -27,7 +27,7 @@ use workspace::{
     ModalView, OpenMode, Workspace,
     notifications::{DetachAndPromptErr, NotifyTaskExt},
 };
-use zed_actions;
+use sotid_actions;
 
 use crate::{
     commit_view::CommitView,
@@ -61,7 +61,6 @@ pub mod text_diff_view;
 pub mod unstaged_diff;
 
 pub use blame_ui::GitBlameStatus;
-pub use conflict_view::MergeConflictIndicator;
 
 pub fn init(cx: &mut App) {
     editor::set_blame_renderer(blame_ui::GitBlameRenderer, cx);
@@ -118,21 +117,21 @@ pub fn init(cx: &mut App) {
         git_picker::register(workspace);
 
         workspace.register_action(
-            |workspace, action: &zed_actions::CreateWorktree, window, cx| {
+            |workspace, action: &sotid_actions::CreateWorktree, window, cx| {
                 git_ui_core::worktree_service::handle_create_worktree(
                     workspace, action, window, None, cx,
                 );
             },
         );
         workspace.register_action(
-            |workspace, action: &zed_actions::SwitchWorktree, window, cx| {
+            |workspace, action: &sotid_actions::SwitchWorktree, window, cx| {
                 git_ui_core::worktree_service::handle_switch_worktree(
                     workspace, action, window, None, cx,
                 );
             },
         );
 
-        workspace.register_action(|workspace, _: &zed_actions::git::Worktree, window, cx| {
+        workspace.register_action(|workspace, _: &sotid_actions::git::Worktree, window, cx| {
             let focused_dock = workspace.focused_dock_position(window, cx);
             let project = workspace.project().clone();
             let workspace_handle = workspace.weak_handle();
@@ -148,7 +147,7 @@ pub fn init(cx: &mut App) {
         });
 
         workspace.register_action(
-            |workspace, action: &zed_actions::OpenWorktreeInNewWindow, window, cx| {
+            |workspace, action: &sotid_actions::OpenWorktreeInNewWindow, window, cx| {
                 let path = action.path.clone();
                 let is_remote = !workspace.project().read(cx).is_local();
 
@@ -186,9 +185,9 @@ pub fn init(cx: &mut App) {
         if project.is_read_only(cx) {
             return;
         }
-        if !project.is_via_collab() {
+        {
             workspace.register_action(
-                |workspace, _: &zed_actions::git::CreatePullRequest, window, cx| {
+                |workspace, _: &sotid_actions::git::CreatePullRequest, window, cx| {
                     if let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) {
                         panel.update(cx, |panel, cx| {
                             panel.create_pull_request(window, cx);

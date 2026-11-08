@@ -41,7 +41,7 @@ impl Vim {
     ) {
         if self.active_operator().is_some() {
             self.operator_stack.clear();
-            self.sync_vim_settings(window, cx);
+            self.sync_vim_settings(cx);
             return;
         }
         let count = Vim::take_count(cx).unwrap_or(1);
@@ -61,7 +61,7 @@ impl Vim {
                     .take()
                     .filter(|_| no_insert_transaction);
                 self.update_editor(cx, |_, editor, cx| {
-                    editor.dismiss_menus_and_popups(false, window, cx);
+                    editor.dismiss_menus_and_popups(window, cx);
                     if let Some(append_state) = restore_append_selection {
                         let snapshot = editor.display_snapshot(cx);
                         let current = editor
@@ -83,7 +83,7 @@ impl Vim {
             }
 
             self.update_editor(cx, |_, editor, cx| {
-                editor.dismiss_menus_and_popups(false, window, cx);
+                editor.dismiss_menus_and_popups(window, cx);
 
                 editor.change_selections(Default::default(), window, cx, |s| {
                     s.move_cursors_with(&mut |map, mut cursor, _| {

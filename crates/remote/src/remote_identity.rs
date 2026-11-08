@@ -91,7 +91,6 @@ mod tests {
             args: Some(vec!["-v".to_string()]),
             connection_timeout: Some(30),
             nickname: Some("work".to_string()),
-            upload_binary_over_ssh: true,
             ..Default::default()
         });
         let right = RemoteConnectionOptions::Ssh(SshConnectionOptions {
@@ -102,7 +101,6 @@ mod tests {
             args: None,
             connection_timeout: None,
             nickname: None,
-            upload_binary_over_ssh: false,
             ..Default::default()
         });
 

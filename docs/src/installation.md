@@ -1,92 +1,68 @@
 ---
-title: Install Zed - macOS, Linux, Windows
-description: Download and install Zed on macOS, Linux, or Windows. Includes Homebrew, direct download, and package manager options.
+title: Install Sotid - macOS, Linux, Windows
+description: Build and install Sotid from source on macOS, Linux, or Windows.
 ---
 
-# Installing Zed
+# Installing Sotid
 
-## Download Zed
+Sotid is built from source. There are no prebuilt download packages; you clone the
+repository, install the build dependencies, and run the install script.
 
-### macOS
+## Build from source
 
-Get the latest stable builds via [the download page](https://zed.dev/download). If you want to download our preview build, you can find it on its [releases page](https://zed.dev/releases/preview). After the first manual installation, Zed will periodically check for install updates.
+1. Clone the Sotid repository:
 
-You can also install Zed stable via Homebrew:
+   ```sh
+   git clone https://github.com/sotid
+   cd sotid
+   ```
 
-```sh
-brew install --cask zed
-```
+2. Install the build dependencies for your platform:
 
-As well as Zed preview:
+   - **Linux:** `script/linux`
+   - **macOS:** see [Building for macOS](./development/macos.md)
+   - **Windows:** see [Building for Windows](./development/windows.md)
 
-```sh
-brew install --cask zed@preview
-```
+3. Build and install Sotid:
 
-### Windows
+   ```sh
+   ./script/install.sh
+   ```
 
-Get the latest stable builds via [the download page](https://zed.dev/download). If you want to download our preview build, you can find it on its [releases page](https://zed.dev/releases/preview). After the first manual installation, Zed will periodically check for install updates.
+   The script builds the `sotid` and `cli` binaries in release mode and installs them
+   into `~/.local`. On Linux it assembles `~/.local/sotid.app/` and symlinks
+   `~/.local/bin/sotid`. On macOS it symlinks `~/.local/bin/sotid`.
 
-Additionally, you can install Zed using winget:
+4. If `~/.local/bin` is not already on your `PATH`, add it:
 
-```sh
-winget install -e --id ZedIndustries.Zed
-```
+   ```sh
+   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+   source ~/.bashrc
+   ```
 
-### Linux
-
-For most Linux users, the easiest way to install Zed is through our installation script:
-
-```sh
-curl -f https://zed.dev/install.sh | sh
-```
-
-You can now optionally specify a **version** of Zed to install using the `ZED_VERSION` environment variable:
-
-```sh
-# Install the latest stable version (default)
-curl -f https://zed.dev/install.sh | sh
-
-# Install a specific version
-curl -f https://zed.dev/install.sh | ZED_VERSION=0.216.0 sh
-```
-
-To install the preview build, which receives updates about a week ahead of stable:
-
-```sh
-curl -f https://zed.dev/install.sh | ZED_CHANNEL=preview sh
-```
-
-This script supports `x86_64` and `AArch64`, as well as common Linux distributions: Ubuntu, Arch, Debian, RedHat, CentOS, Fedora, and more.
-
-If Zed is installed using this installation script, it can be uninstalled at any time by running the shell command `zed --uninstall`. The shell will then prompt you whether you'd like to keep your preferences or delete them. After making a choice, you should see a message that Zed was successfully uninstalled.
-
-If this script is insufficient for your use case, you run into problems running Zed, or there are errors in uninstalling Zed, please see our [Linux-specific documentation](./linux.md).
+You can now run Sotid from your terminal with `sotid`.
 
 ## System Requirements
 
 ### macOS
 
-Zed requires macOS 12.0 (Monterey) or later.
+Sotid requires macOS 12.0 (Monterey) or later.
 
-| Version            | Codename    | Apple Status   | Zed Status          |
-| ------------------ | ----------- | -------------- | ------------------- |
-| macOS 27.x         | Golden Gate | Supported      | Supported           |
-| macOS 26.x         | Tahoe       | Supported      | Supported           |
-| macOS 15.x         | Sequoia     | Supported      | Supported           |
-| macOS 14.x         | Sonoma      | EOL 2026-09-14 | Supported           |
-| macOS 13.x         | Ventura     | EOL 2025-09-15 | Supported           |
-| macOS 12.x (12.3+) | Monterey    | EOL 2024-09-16 | Supported           |
-| macOS 12.0–12.2    | Monterey    | EOL 2024-09-16 | Partially Supported |
-
-The macOS releases labelled "Partially Supported" (Monterey 12.0–12.2) do not support screen sharing via Zed Collaboration.
-Screen sharing uses [ScreenCaptureKit.framework](https://developer.apple.com/documentation/screencapturekit/), which is available on macOS 12.3 and newer.
+| Version            | Codename    | Apple Status   | Sotid Status          |
+| ------------------ | ----------- | -------------- | --------------------- |
+| macOS 27.x         | Golden Gate | Supported      | Supported             |
+| macOS 26.x         | Tahoe       | Supported      | Supported             |
+| macOS 15.x         | Sequoia     | Supported      | Supported             |
+| macOS 14.x         | Sonoma      | EOL 2026-09-14 | Supported             |
+| macOS 13.x         | Ventura     | EOL 2025-09-15 | Supported             |
+| macOS 12.x (12.3+) | Monterey    | EOL 2024-09-16 | Supported             |
+| macOS 12.0–12.2    | Monterey    | EOL 2024-09-16 | Partially Supported   |
 
 Apple support status and EOL dates are from [endoflife.date](https://endoflife.date/macos).
 
 #### Mac Hardware
 
-Zed supports machines with Intel (x86_64) or Apple (aarch64) processors that meet the above macOS requirements:
+Sotid supports machines with Intel (x86_64) or Apple (aarch64) processors that meet the above macOS requirements:
 
 - MacBook Pro (Early 2015 and newer)
 - MacBook Air (Early 2015 and newer)
@@ -99,9 +75,9 @@ Zed supports machines with Intel (x86_64) or Apple (aarch64) processors that mee
 
 ### Linux
 
-Zed supports 64-bit Intel/AMD (x86_64) and 64-bit Arm (aarch64) processors.
+Sotid supports 64-bit Intel/AMD (x86_64) and 64-bit Arm (aarch64) processors.
 
-Zed requires a Vulkan 1.3 driver and the following desktop portals:
+Sotid requires a Vulkan 1.3 driver and the following desktop portals:
 
 - `org.freedesktop.portal.FileChooser`
 - `org.freedesktop.portal.OpenURI`
@@ -109,25 +85,21 @@ Zed requires a Vulkan 1.3 driver and the following desktop portals:
 
 ### Windows
 
-Zed supports the following Windows releases:
-| Version | Zed Status |
+Sotid supports the following Windows releases:
+| Version | Sotid Status |
 | ------------------------- | ------------------- |
 | Windows 11, version 22H2 and later | Supported |
 | Windows 10, version 1903 and later | Supported |
 
-A 64-bit operating system is required to run Zed.
+A 64-bit operating system is required to run Sotid.
 
 #### Windows Hardware
 
-Zed supports machines with x64 (Intel, AMD) or Arm64 (Qualcomm) processors that meet the following requirements:
+Sotid supports machines with x64 (Intel, AMD) or Arm64 (Qualcomm) processors that meet the following requirements:
 
 - Graphics: A GPU that supports DirectX 11 (most PCs from 2012+).
 - Driver: Current NVIDIA/AMD/Intel/Qualcomm driver (not the Microsoft Basic Display Adapter).
 
 ### FreeBSD
 
-Not yet available as an official download. Can be built [from source](./development/freebsd.md).
-
-### Web
-
-Not supported at this time. See our [Platform Support issue](https://github.com/zed-industries/zed/issues/5391).
+Can be built [from source](./development/freebsd.md).

@@ -336,7 +336,7 @@ impl PythonDebugAdapter {
 
                 let debug_adapter_path = paths::debug_adapters_dir().join(Self::DEBUG_ADAPTER_NAME.as_ref());
                 let output = util::command::new_command(&base_python)
-                    .args(["-m", "venv", "zed_base_venv"])
+                    .args(["-m", "venv", "sotid_base_venv"])
                     .current_dir(
                         &debug_adapter_path,
                     )
@@ -361,7 +361,7 @@ impl PythonDebugAdapter {
                 Ok(Arc::from(
                     paths::debug_adapters_dir()
                         .join(Self::DEBUG_ADAPTER_NAME.as_ref())
-                        .join("zed_base_venv")
+                        .join("sotid_base_venv")
                         .join(PYTHON_PATH)
                         .as_ref(),
                 ))
@@ -504,9 +504,9 @@ impl DebugAdapter for PythonDebugAdapter {
         Some(SharedString::new_static("Python").into())
     }
 
-    async fn config_from_zed_format(&self, zed_scenario: ZedDebugConfig) -> Result<DebugScenario> {
+    async fn config_from_sotid_format(&self, sotid_scenario: SotidDebugConfig) -> Result<DebugScenario> {
         let mut args = json!({
-            "request": match zed_scenario.request {
+            "request": match sotid_scenario.request {
                 DebugRequest::Launch(_) => "launch",
                 DebugRequest::Attach(_) => "attach",
             },
@@ -515,7 +515,7 @@ impl DebugAdapter for PythonDebugAdapter {
         });
 
         let map = args.as_object_mut().unwrap();
-        match &zed_scenario.request {
+        match &sotid_scenario.request {
             DebugRequest::Attach(attach) => {
                 map.insert("processId".into(), attach.process_id.into());
             }
@@ -526,7 +526,7 @@ impl DebugAdapter for PythonDebugAdapter {
                     map.insert("env".into(), launch.env_json());
                 }
 
-                if let Some(stop_on_entry) = zed_scenario.stop_on_entry {
+                if let Some(stop_on_entry) = sotid_scenario.stop_on_entry {
                     map.insert("stopOnEntry".into(), stop_on_entry.into());
                 }
                 if let Some(cwd) = launch.cwd.as_ref() {
@@ -536,8 +536,8 @@ impl DebugAdapter for PythonDebugAdapter {
         }
 
         Ok(DebugScenario {
-            adapter: zed_scenario.adapter,
-            label: zed_scenario.label,
+            adapter: sotid_scenario.adapter,
+            label: sotid_scenario.label,
             config: args,
             build: None,
             tcp_connection: None,

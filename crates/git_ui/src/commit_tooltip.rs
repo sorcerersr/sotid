@@ -13,7 +13,7 @@ use gpui::{
     ScrollHandle, StatefulInteractiveElement, Task, WeakEntity, Window, prelude::*,
 };
 use markdown::{Markdown, MarkdownElement};
-use notifications::status_toast::StatusToast;
+use workspace::StatusToast;
 use project::git_store::{Repository, UnshallowState};
 use settings::Settings;
 use std::hash::Hash;
@@ -500,11 +500,7 @@ pub(crate) fn shallow_boundary_notice(
     }
     let in_flight = unshallow_state == UnshallowState::InProgress;
     let avatar_width = CommitAvatar::rendered_size(rems(1.), window);
-    let can_fetch = workspace
-        .read_with(cx, |workspace, cx| {
-            !workspace.project().read(cx).is_via_collab()
-        })
-        .unwrap_or(false);
+    let can_fetch = true;
     Some(
         v_flex()
             .py_1()

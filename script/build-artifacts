@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Builds Sotid release artifacts for Linux in a podman container, using the
+# same scripts CI runs: script/bundle-linux (archive) and
+# script/flatpak/bundle-flatpak (flatpak).
+#
+# The container image is self-contained: it carries the Rust toolchain (the
+# version pinned in rust-toolchain.toml), every build dependency, and the
+# flatpak tooling. The host only needs podman. The repo is mounted in for the
+# source and the build output; the build runs as root, so target/ ends up
+# root-owned on the host (rm -rf target before a host-side cargo build if that
+# matters to you).
+#
+# The flatpak runtime (~1GB) is downloaded into target/flatpak/ on the first
+# flatpak build and reused on later runs.
+#
+# Notes:
+# - The image is tagged with the toolchain version, so a rust-toolchain.toml
+#   change rebuilds it automatically. To force a rebuild after editing the
+#   Containerfile: podman rmi sotid-linux-build:<toolchain>
+# - On SELinux hosts, if the container fails on the mounted volumes, append
+#   ":z" to each -v mount.
+# - flatpak-builder sandboxes builds with bubblewrap, which requires the host
+#   to allow unprivileged user namespaces.
+
+ARCHIVE_ONLY=false
+FLATPAK_ONLY=false
+
+help_info() {
+    echo "
+Usage: ${0##*/} [options]
+Build Sotid release artifacts for Linux in a podman container.
+
+With no options, builds both the .tar.gz archive and the .flatpak bundle.
+Artifacts land in target/release/.
+
+Options:
+  -h, --help     Display this help and exit.
+  --archive      Build only the .tar.gz archive.
+  --flatpak      Build only the .flatpak bundle (builds the archive first).
+"
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            help_info
+            exit 0
+            ;;
+        --archive)
+            ARCHIVE_ONLY=true
+            shift
+            ;;
+        --flatpak)
+            FLATPAK_ONLY=true
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            help_info
+            exit 1
+            ;;
+        *)
+            echo "Error: Unexpected argument: $1" >&2
+            help_info
+            exit 1
+            ;;
+    esac
+done
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$repo_root"
+
+if ! command -v podman >/dev/null 2>&1; then
+    echo "Error: podman not found. Install podman and try again." >&2
+    exit 1
+fi
+
+# The image is tagged with the pinned toolchain version so a rust-toolchain.toml
+# change triggers a rebuild. Fall back to stable if the file is absent.
+toolchain=$(grep -oP 'channel\s*=\s*"\K[^"]+' rust-toolchain.toml 2>/dev/null || echo stable)
+IMAGE_TAG="sotid-linux-build:$toolchain"
+
+if ! podman image exists "$IMAGE_TAG"; then
+    echo "Build container image not found; building $IMAGE_TAG (this only happens once)..."
+    podman build --build-arg "TOOLCHAIN=$toolchain" -t "$IMAGE_TAG" -f script/Containerfile.build-artifacts script
+fi
+
+flatpak_dir="$repo_root/target/flatpak"
+mkdir -p "$flatpak_dir"
+
+run_in_container() {
+    # Runs as root (no --userns=keep-id): the toolchain lives in the image, so
+    # there are no host-owned mounts to get permission errors on. The repo and
+    # the flatpak cache are the only mounts.
+    podman run --rm \
+        -v "$repo_root":/workspace \
+        -v "$flatpak_dir":/root/.local/share/flatpak \
+        -w /workspace \
+        "$IMAGE_TAG" \
+        "$@"
+}
+
+build_archive() {
+    run_in_container script/bundle-linux
+    local archive
+    archive=$(ls target/release | grep -E 'sotid(-[a-zA-Z0-9]+)?-linux-'"$(uname -m)"'\.tar\.gz')
+    echo "Built target/release/$archive"
+}
+
+build_flatpak() {
+    # The flatpak installation dir is a host mount, so the flathub remote
+    # baked into the image is not visible on a first run.
+    run_in_container flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+    run_in_container script/flatpak/bundle-flatpak
+    local channel app_id
+    channel=$(<crates/sotid/RELEASE_CHANNEL)
+    case "$channel" in
+        dev) app_id="de.sorcarion.SotidDev" ;;
+        nightly) app_id="de.sorcarion.SotidNightly" ;;
+        preview) app_id="de.sorcarion.SotidPreview" ;;
+        stable) app_id="de.sorcarion.Sotid" ;;
+    esac
+    if [[ -f "target/release/$app_id.flatpak" ]]; then
+        echo "Built target/release/$app_id.flatpak"
+    else
+        echo "Error: expected artifact target/release/$app_id.flatpak not found" >&2
+        exit 1
+    fi
+}
+
+if [[ "$FLATPAK_ONLY" == true ]]; then
+    build_flatpak
+elif [[ "$ARCHIVE_ONLY" == true ]]; then
+    build_archive
+else
+    build_archive
+    build_flatpak
+fi

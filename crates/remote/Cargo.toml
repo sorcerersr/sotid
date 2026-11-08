@@ -15,7 +15,6 @@ doctest = false
 
 [features]
 default = []
-build-remote-server-binary = []
 test-support = ["fs/test-support"]
 
 [dependencies]
@@ -38,7 +37,6 @@ serde.workspace = true
 serde_json.workspace = true
 settings_content.workspace = true
 smol.workspace = true
-telemetry.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 util.workspace = true

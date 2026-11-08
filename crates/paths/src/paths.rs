@@ -15,7 +15,10 @@ pub const EDITORCONFIG_NAME: &str = ".editorconfig";
 /// and state directory paths.
 ///
 /// Forks should change this to avoid colliding with Zed's user data.
-pub const APP_NAME: &str = "Zed";
+pub const APP_NAME: &str = "Sotid";
+
+/// The URL scheme for the application.
+pub const URL_SCHEME: &str = "sotid";
 
 /// Lowercased form of [`APP_NAME`], for use in XDG-style paths on
 /// Linux/FreeBSD and the macOS `~/.config` fallback.
@@ -451,30 +454,10 @@ pub fn debug_adapters_dir() -> &'static PathBuf {
     DEBUG_ADAPTERS_DIR.get_or_init(|| data_dir().join("debug_adapters"))
 }
 
-/// Returns the path to the external agents directory
-///
-/// This is where agent servers are downloaded to
-pub fn external_agents_dir() -> &'static PathBuf {
-    static EXTERNAL_AGENTS_DIR: OnceLock<PathBuf> = OnceLock::new();
-    EXTERNAL_AGENTS_DIR.get_or_init(|| data_dir().join("external_agents"))
-}
-
-/// Returns the path to the Copilot directory.
-pub fn copilot_dir() -> &'static PathBuf {
-    static COPILOT_DIR: OnceLock<PathBuf> = OnceLock::new();
-    COPILOT_DIR.get_or_init(|| data_dir().join("copilot"))
-}
-
 /// Returns the path to the default Prettier directory.
 pub fn default_prettier_dir() -> &'static PathBuf {
     static DEFAULT_PRETTIER_DIR: OnceLock<PathBuf> = OnceLock::new();
     DEFAULT_PRETTIER_DIR.get_or_init(|| data_dir().join("prettier"))
-}
-
-/// Returns the path to the remote server binaries directory.
-pub fn remote_servers_dir() -> &'static PathBuf {
-    static REMOTE_SERVERS_DIR: OnceLock<PathBuf> = OnceLock::new();
-    REMOTE_SERVERS_DIR.get_or_init(|| data_dir().join("remote_servers"))
 }
 
 /// Returns the path to the directory where the devcontainer CLI is installed.

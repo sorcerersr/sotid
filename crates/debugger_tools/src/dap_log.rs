@@ -769,7 +769,6 @@ impl DapLogView {
             editor.set_input_enabled(false);
             editor.set_use_autoclose(false);
             editor.set_read_only(true);
-            editor.set_show_edit_predictions(Some(false), window, cx);
             editor
         });
         let editor_subscription = cx.subscribe(
@@ -996,9 +995,6 @@ impl Item for DapLogView {
         "DAP Logs".into()
     }
 
-    fn telemetry_event_text(&self) -> Option<&'static str> {
-        None
-    }
 
     fn as_searchable(
         &self,

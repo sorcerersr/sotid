@@ -109,11 +109,8 @@ impl From<SerializedProjectGroup> for ProjectGroupKey {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct MultiWorkspaceState {
     pub active_workspace_id: Option<WorkspaceId>,
-    pub sidebar_open: bool,
     #[serde(alias = "project_group_keys")]
     pub project_groups: Vec<SerializedProjectGroup>,
-    #[serde(default)]
-    pub sidebar_state: Option<String>,
 }
 
 /// The serialized state of a single MultiWorkspace window from a previous session:

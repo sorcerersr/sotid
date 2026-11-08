@@ -14,12 +14,12 @@
 
 ---
 
-title: Configuring Zed - Settings and Preferences
+title: Configuring Sotid - Settings and Preferences
 description: Configure Zed with the Settings Editor, JSON files, and project-specific overrides. Covers all settings options.
 
 ---
 
-# Configuring Zed
+# Configuring Sotid
 
 This guide explains how Zed's settings system works, including the Settings Editor, JSON configuration files, and project-specific settings.
 

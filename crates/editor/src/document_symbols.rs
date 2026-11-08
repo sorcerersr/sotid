@@ -386,7 +386,7 @@ mod tests {
     use theme::SyntaxTheme;
     use util::path;
     use workspace::item::{Item, ItemEvent};
-    use zed_actions::editor::MoveDown;
+    use sotid_actions::editor::MoveDown;
 
     use super::highlights_from_buffer;
     use crate::{

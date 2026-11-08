@@ -1,24 +1,24 @@
 ---
 title: Visual Customization
-description: "Various aspects of Zed's visual layout can be configured in the Settings Editor or settings file."
+description: "Various aspects of Sotid's visual layout can be configured in the Settings Editor or settings file."
 ---
 
 # Visual Customization
 
-Various aspects of Zed's visual layout can be configured in the Settings Editor ({#kb zed::OpenSettings}) or in your settings file ({#kb zed::OpenSettingsFile}).
+Various aspects of Sotid's visual layout can be configured in the Settings Editor ({#kb sotid::OpenSettings}) or in your settings file ({#kb sotid::OpenSettingsFile}).
 
 See [All Settings](./reference/all-settings.md) for additional information and other non-visual settings.
 
 ## Themes
 
-You can install many [themes](./themes.md) and [icon themes](./icon-themes.md) in form of [extensions](./extensions.md) by running {#action zed::Extensions} from the command palette.
+You can install many [themes](./themes.md) and [icon themes](./icon-themes.md) in form of [extensions](./extensions.md) by running {#action sotid::Extensions} from the command palette.
 
 You can preview/choose amongst your installed themes and icon themes with {#action theme_selector::Toggle} ({#kb theme_selector::Toggle}) and {#action icon_theme_selector::Toggle} which will modify the following settings:
 
 ```json [settings]
 {
   "theme": "One Dark",
-  "icon_theme": "Zed (Default)"
+  "icon_theme": "Sotid (Default)"
 }
 ```
 
@@ -33,8 +33,8 @@ If you would like to use distinct themes for light mode/dark mode that can be se
     "mode": "system"
   },
   "icon_theme": {
-    "dark": "Zed (Default)",
-    "light": "Zed (Default)",
+    "dark": "Sotid (Default)",
+    "light": "Sotid (Default)",
     // Mode to use (dark, light) or "system" to follow the OS's light/dark mode (default)
     "mode": "system"
   }
@@ -45,13 +45,13 @@ If you would like to use distinct themes for light mode/dark mode that can be se
 
 ```json [settings]
   // UI Font. Use ".SystemUIFont" to use the default system font (SF Pro on macOS),
-  // or ".ZedSans" for the bundled default (currently IBM Plex)
+  // or ".SotidSans" for the bundled default (currently IBM Plex)
   "ui_font_family": ".SystemUIFont",
   "ui_font_weight": 400, // Font weight in standard CSS units from 100 to 900.
   "ui_font_size": 16,
 
   // Buffer Font - Used by editor buffers
-  // use ".ZedMono" for the bundled default monospace (currently Lilex)
+  // use ".SotidMono" for the bundled default monospace (currently Lilex)
   "buffer_font_family": "Berkeley Mono", // Font name for editor buffers
   "buffer_font_size": 15,                 // Font size for editor buffers
   "buffer_font_weight": 400,              // Font weight in CSS units [100-900]
@@ -100,7 +100,7 @@ If you would like to use distinct themes for light mode/dark mode that can be se
 
 ### Font ligatures
 
-By default Zed enables font ligatures which will visually combine certain adjacent characters.
+By default Sotid enables font ligatures which will visually combine certain adjacent characters.
 
 For example `=>` will be displayed as `→` and `!=` will be `≠`.
 This is purely cosmetic and the individual characters remain unchanged.
@@ -127,10 +127,8 @@ To disable this behavior use:
   // Individual status bar icons can be hidden:
   // "project_panel": {"button": false },
   // "outline_panel": {"button": false },
-  // "collaboration_panel": {"button": false },
   // "git_panel": {"button": false },
 
-  // "agent": {"button": false },
   // "debugger": {"button": false },
   // "diagnostics": {"button": false },
   // "search": {"button": false },
@@ -159,10 +157,10 @@ To disable this behavior use:
 
 ```json [settings]
 {
-  // Force usage of Zed build in path prompts (file and directory pickers)
+  // Force usage of Sotid build in path prompts (file and directory pickers)
   // instead of OS native pickers (false).
   "use_system_path_prompts": true,
-  // Force usage of Zed built in confirmation prompts ("Do you want to save?")
+  // Force usage of Sotid built in confirmation prompts ("Do you want to save?")
   // instead of OS native prompts (false). On linux this is ignored (always false).
   "use_system_prompts": true,
 
@@ -488,7 +486,7 @@ TBD: Centered layout related settings
   "project_panel": {
     "button": true,                 // Show/hide button in the status bar
     "default_width": 240,           // Default panel width
-    "dock": "right",                // Position of the dock (left, right)
+    "dock": "left",                // Position of the dock (left, right)
     "entry_spacing": "comfortable", // Vertical spacing (comfortable, standard)
     "file_icons": true,             // Show/hide file icons
     "folder_indicator": "icon",     // Dir glyph: icon, chevron, both
@@ -525,18 +523,10 @@ TBD: Centered layout related settings
   }
 ```
 
-## Agent Panel
+## Agent Fonts
 
 ```json [settings]
 {
-  "agent": {
-    "enabled": true, // Enable/disable the agent
-    "button": true, // Show/hide the icon in the status bar
-    "dock": "right", // Where to dock: left, right, bottom
-    "flexible": true, // Use proportional sizing (left/right docked)
-    "default_width": 640, // Fixed width when flexible is false
-    "default_height": 320 // Default height (bottom docked)
-  },
   // Controls the font family and size for agent responses in the agent panel.
   // If not specified, they fall back to the UI font family and size.
   "agent_ui_font_family": "Inter",
@@ -549,9 +539,6 @@ TBD: Centered layout related settings
 }
 ```
 
-When `agent.flexible` is enabled, `agent.default_width` does not control the panel width. Double-clicking the panel’s outer resize handle restores the default proportion. Set `agent.flexible` to `false` to use `agent.default_width` as the reset width.
-
-See [Zed AI Documentation](./ai/overview.md) for additional non-visual AI settings.
 
 ## Terminal Panel
 
@@ -631,18 +618,4 @@ See [Terminal settings](./reference/all-settings.md#terminal) for additional non
     },
     "multi_buffer_hide_symbols": false  // Hide symbols in multi-buffer views (show only files)
   }
-```
-
-## Collaboration Panels
-
-```json [settings]
-{
-  // Collaboration Panel
-  "collaboration_panel": {
-    "button": true, // Show/hide status bar icon
-    "dock": "left", // Where to dock: left, right
-    "default_width": 240 // Default width of the collaboration panel.
-  },
-  "show_call_status_icon": true // Shown call status in the OS status bar.
-}
 ```

@@ -28,7 +28,6 @@ wasmtime::component::bindgen!({
         "zed:extension/nodejs": latest::zed::extension::nodejs,
         "zed:extension/process": latest::zed::extension::process,
         "zed:extension/slash-command": latest::zed::extension::slash_command,
-        "zed:extension/context-server": latest::zed::extension::context_server,
     },
 });
 
@@ -266,6 +265,8 @@ impl From<latest::lsp::SymbolKind> for lsp::SymbolKind {
         }
     }
 }
+
+impl context_server::Host for WasmState {}
 
 impl lsp::Host for WasmState {}
 

@@ -1,17 +1,17 @@
 ---
 title: Shell Script
-description: "Configure Shell Script language support in Zed, including language servers, formatting, and debugging."
+description: "Configure Shell Script language support in Sotid, including language servers, formatting, and debugging."
 ---
 
 # Shell Scripts
 
-Shell Scripts (bash, zsh, dash, sh) are supported natively by Zed.
+Shell Scripts (bash, zsh, dash, sh) are supported natively by Sotid.
 
 - Tree-sitter: [tree-sitter/tree-sitter-bash](https://github.com/tree-sitter/tree-sitter-bash)
 
 ## Settings
 
-Configure settings in Settings ({#kb zed::OpenSettings}) under Languages > Shell Script, or add to your settings file:
+Configure settings in Settings ({#kb sotid::OpenSettings}) under Languages > Shell Script, or add to your settings file:
 
 ```json [settings]
   "languages": {
@@ -24,7 +24,7 @@ Configure settings in Settings ({#kb zed::OpenSettings}) under Languages > Shell
 
 ### Formatting
 
-Zed supports auto-formatting Shell Scripts using external tools like [`shfmt`](https://github.com/mvdan/sh).
+Sotid supports auto-formatting Shell Scripts using external tools like [`shfmt`](https://github.com/mvdan/sh).
 
 1. Install `shfmt`:
 
@@ -44,7 +44,7 @@ which shfmt
 shfmt --version
 ```
 
-3. Configure formatting in Settings ({#kb zed::OpenSettings}) under Languages > Shell Script, or add to your settings file:
+3. Configure formatting in Settings ({#kb sotid::OpenSettings}) under Languages > Shell Script, or add to your settings file:
 
 ```json [settings]
   "languages": {
@@ -63,6 +63,6 @@ shfmt --version
 
 ## See also:
 
-- [Zed Docs: Language Support: Bash](./bash.md)
-- [Zed Docs: Language Support: Env](./env.md)
-- [Zed Docs: Language Support: Fish](./fish.md)
+- [Sotid Docs: Language Support: Bash](./bash.md)
+- [Sotid Docs: Language Support: Env](./env.md)
+- [Sotid Docs: Language Support: Fish](./fish.md)

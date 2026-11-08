@@ -1,5 +1,5 @@
 use gpui::{App, Context, WeakEntity, Window};
-use notifications::status_toast::StatusToast;
+use workspace::StatusToast;
 use std::sync::Arc;
 use ui::{Color, Icon, IconName, IconSize, SharedString};
 use util::ResultExt;

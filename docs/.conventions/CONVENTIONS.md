@@ -1,13 +1,6 @@
-# Zed Documentation Conventions
+# Sotid Documentation Conventions
 
-This document covers structural conventions for Zed documentation: what to document, how to organize it, and when to create new pages.
-
-For voice, tone, and writing style, see the [brand-writer/](./brand-writer/) directory, which contains:
-
-- `SKILL.md` — Core voice principles and workflow
-- `rubric.md` — 8-point scoring criteria for quality
-- `taboo-phrases.md` — Patterns and phrases to avoid
-- `voice-examples.md` — Before/after transformation examples
+This document covers structural conventions for Sotid documentation: what to document, how to organize it, and when to create new pages.
 
 ---
 
@@ -19,13 +12,10 @@ For voice, tone, and writing style, see the [brand-writer/](./brand-writer/) dir
 - **New settings or configuration options** — Include the setting key, type, default value, and example
 - **New keybindings or commands** — Use `{#action ...}` and `{#kb ...}` syntax
 - **All actions** — Completeness matters; document every action, not just non-obvious ones
-- **New AI capabilities** — Agent tools, providers, workflows
-- **New providers or integrations** — LLM providers, MCP servers, external agents
-- **New tools** — Agent tools, MCP tools, built-in tools
 - **New UI panels or views** — Any new panel, sidebar, or view users interact with
 - **Public extension APIs** — For extension developers
 - **Breaking changes** — Even if the fix is simple, document what changed
-- **Version-specific behavior changes** — Include version callouts (e.g., "In Zed v0.224.0 and above...")
+- **Version-specific behavior changes** — Include version callouts (e.g., "In Sotid v0.224.0 and above...")
 
 ### Skip
 
@@ -43,8 +33,8 @@ For voice, tone, and writing style, see the [brand-writer/](./brand-writer/) dir
 
 - Introducing a **major feature** with multiple sub-features (e.g., Git integration, Vim mode)
 - The topic requires **extensive configuration examples**
-- Users would search for it **by name** (e.g., "Zed terminal", "Zed snippets")
-- It's a **new category** (e.g., a new AI provider type)
+- Users would search for it **by name** (e.g., "Sotid terminal", "Sotid snippets")
+- It's a **new category** (e.g., a new language or debugger)
 
 ### Add to an existing page when:
 
@@ -60,8 +50,6 @@ For voice, tone, and writing style, see the [brand-writer/](./brand-writer/) dir
 | New "Stash" feature for Git          | Add section to `git.md`                |
 | New "Remote Development" capability  | Create `remote-development.md`         |
 | New setting `git.inline_blame.delay` | Add to existing Git config section     |
-| New AI provider (e.g., "Ollama")     | Add section to `llm-providers.md`      |
-| New agent tool category              | Potentially new page, depends on scope |
 
 ---
 
@@ -73,12 +61,12 @@ Every doc page needs YAML frontmatter:
 
 ```yaml
 ---
-title: Feature Name - Zed
+title: Feature Name - Sotid
 description: One sentence describing what this page covers. Used in search results.
 ---
 ```
 
-- `title`: Feature name, optionally with "- Zed" suffix for SEO
+- `title`: Feature name, optionally with "- Sotid" suffix for SEO
 - `description`: Concise summary for search engines and link previews
 - Keep frontmatter values as simple single-line `key: value` entries (no
   multiline values, no quotes) for compatibility with the docs postprocessor
@@ -136,13 +124,13 @@ Use inline `code` for:
 - Setting names: `vim_mode`, `buffer_font_size`
 - Keybindings: `cmd-shift-p`, `ctrl-w h`
 - Commands: `:w`, `:q`
-- File paths: `~/.config/zed/settings.json`
+- File paths: `~/.config/sotid/settings.json`
 - Action names: `git::Commit`
 - Values: `true`, `false`, `"eager"`
 
 ### Action and Keybinding References
 
-Use Zed's special syntax for dynamic rendering:
+Use Sotid's special syntax for dynamic rendering:
 
 - {#action git::Commit} — Renders the action name
 - {#kb git::Commit} — Renders the keybinding for that action
@@ -203,9 +191,9 @@ This improves clarity for both human readers and AI systems parsing the document
 Use blockquote callouts for tips, notes, and warnings:
 
 ```markdown
-> **Note:** This feature requires signing in.
+> **Note:** This feature requires a compatible language server.
 
-> **Tip:** Hold `cmd` when submitting to automatically follow the agent.
+> **Tip:** Hold `cmd` when submitting to run the command in the background.
 
 > **Warning:** This action cannot be undone.
 ```
@@ -215,7 +203,7 @@ Use blockquote callouts for tips, notes, and warnings:
 When behavior differs by version, be explicit:
 
 ```markdown
-> **Note:** In Zed v0.224.0 and above, tool approval is controlled by `agent.tool_permissions.default`.
+> **Note:** In Sotid v0.224.0 and above, terminal split sizing is controlled by `terminal.default_height`.
 ```
 
 Include the version number and what changed. This helps users on older versions understand why their behavior differs.
@@ -229,11 +217,11 @@ Include the version number and what changed. This helps users on older versions 
 Link to other docs using relative paths:
 
 - `[Vim mode](./vim.md)`
-- `[AI Quick Start](./ai/quick-start.md)`
+- `[Terminal](./terminal.md)`
 
 ### External Links
 
-- Link to `zed.dev` pages when appropriate
+- Link to `github.com/sotid` pages when appropriate
 - Link to upstream documentation (e.g., Tree-sitter, language servers) when explaining integrations
 
 ### "See Also" Sections
@@ -243,8 +231,8 @@ End pages with related links when helpful:
 ```markdown
 ## See also
 
-- [Agent Panel](./agent-panel.md): Agentic editing with file read/write
-- [Inline Assistant](./inline-assistant.md): Prompt-driven code transformations
+- [Git integration](./git.md): Version control from the editor
+- [Terminal](./terminal.md): Integrated terminal
 ```
 
 ### SEO Linking Guidelines
@@ -259,7 +247,7 @@ End pages with related links when helpful:
 - Use descriptive link text that tells users what they will get on the linked
   page
 - For main feature pages with a matching marketing page, include a relevant
-  `zed.dev` marketing link in addition to docs links
+  `github.com/sotid` marketing link in addition to docs links
 
 ---
 
@@ -274,7 +262,7 @@ Language docs in `src/languages/` follow a consistent structure:
 5. Language-specific settings
 6. Known limitations (if any)
 
-Keep language docs focused on Zed-specific configuration, not general language tutorials.
+Keep language docs focused on Sotid-specific configuration, not general language tutorials.
 
 ---
 
@@ -291,7 +279,7 @@ When documenting settings:
 
 Example:
 
-> Configure inline blame in Settings ({#kb zed::OpenSettings}) by searching for "inline blame", or add to your settings file:
+> Configure inline blame in Settings ({#kb sotid::OpenSettings}) by searching for "inline blame", or add to your settings file:
 >
 > ```json [settings]
 > {
@@ -305,17 +293,17 @@ Example:
 
 For JSON-only settings (complex types without UI support), note this and link to instructions:
 
-> Add the following to your settings file ([how to edit](./configuring-zed.md#settings-files)):
+> Add the following to your settings file ([how to edit](./configuring-sotid.md#settings-files)):
 
 ### Settings File Locations
 
-- **macOS/Linux:** `~/.config/zed/settings.json`
-- **Windows:** `%AppData%\Zed\settings.json`
+- **macOS/Linux:** `~/.config/sotid/settings.json`
+- **Windows:** `%AppData%\Sotid\settings.json`
 
 ### Keymap File Locations
 
-- **macOS/Linux:** `~/.config/zed/keymap.json`
-- **Windows:** `%AppData%\Zed\keymap.json`
+- **macOS/Linux:** `~/.config/sotid/keymap.json`
+- **Windows:** `%AppData%\Sotid\keymap.json`
 
 ---
 
@@ -363,9 +351,8 @@ Before finalizing documentation:
 - [ ] Version callouts where behavior differs by release
 - [ ] No orphan pages (linked from somewhere)
 - [ ] Non-reference pages include at least 3 useful internal docs links
-- [ ] Main feature pages include a relevant `zed.dev` marketing link
+- [ ] Main feature pages include a relevant `github.com/sotid` marketing link
 - [ ] Passes Prettier formatting check
-- [ ] Passes brand voice rubric (see `brand-writer/rubric.md`)
 
 ---
 

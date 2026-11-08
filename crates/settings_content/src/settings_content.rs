@@ -1,10 +1,8 @@
 mod action;
-mod agent;
 mod editor;
 mod extension;
 mod fallible_options;
 mod language;
-mod language_model;
 pub mod merge_from;
 mod project;
 mod serde_helper;
@@ -14,13 +12,11 @@ mod title_bar;
 mod workspace;
 
 pub use action::{ActionName, ActionWithArguments, CommandAliasTarget};
-pub use agent::*;
 use anyhow::Context;
 pub use editor::*;
 pub use extension::*;
 pub use fallible_options::*;
 pub use language::*;
-pub use language_model::*;
 pub use merge_from::MergeFrom as MergeFromTrait;
 pub use project::*;
 use serde::de::DeserializeOwned;
@@ -207,16 +203,8 @@ pub struct SettingsContent {
 
     pub preview_tabs: Option<PreviewTabsSettingsContent>,
 
-    pub agent: Option<AgentSettingsContent>,
-    pub agent_servers: Option<AllAgentServersSettings>,
-
     /// Configuration of audio in Zed.
     pub audio: Option<AudioSettingsContent>,
-
-    /// Whether or not to automatically check for updates.
-    ///
-    /// Default: true
-    pub auto_update: Option<bool>,
 
     /// This base keymap settings adjusts the default keybindings in Zed to be similar
     /// to other common code editors. By default, Zed's keymap closely follows VSCode's
@@ -269,10 +257,6 @@ pub struct SettingsContent {
 
     pub line_indicator_format: Option<LineIndicatorFormat>,
 
-    pub language_models: Option<AllLanguageModelSettingsContent>,
-
-    pub copilot: Option<CopilotSettingsContent>,
-
     pub outline_panel: Option<OutlinePanelSettingsContent>,
 
     pub project_panel: Option<ProjectPanelSettingsContent>,
@@ -300,8 +284,6 @@ pub struct SettingsContent {
 
     /// Configuration for session-related features
     pub session: Option<SessionSettingsContent>,
-    /// Control what info is collected by Zed.
-    pub telemetry: Option<TelemetrySettingsContent>,
 
     /// Configuration of the terminal in Zed.
     pub terminal: Option<TerminalSettingsContent>,
@@ -405,12 +387,12 @@ impl SettingsContent {
 fallible_options::flattened_deserialize!(SettingsContent {
     sections: { project, theme, extension, workspace, editor, remote },
     options: {
-        call_hierarchy, command_palette, file_finder, git_panel, tabs, tab_bar, tab_switcher, status_bar, preview_tabs, agent,
-        agent_servers, audio, auto_update, base_keymap, collaboration_panel, debugger, diagnostics,
+        call_hierarchy, command_palette, file_finder, git_panel, tabs, tab_bar, tab_switcher, status_bar, preview_tabs, audio,
+        base_keymap, collaboration_panel, debugger, diagnostics,
         git,
         global_lsp_settings, image_viewer, markdown_preview, repl, helix_mode, hide_mouse,
-        journal, log, line_indicator_format, language_models, copilot, outline_panel, project_panel,
-        node, proxy, reduce_motion, server_url, credentials_url, session, telemetry, terminal,
+        journal, log, line_indicator_format, outline_panel, project_panel,
+        node, proxy, reduce_motion, server_url, credentials_url, session, terminal,
         title_bar, vim_mode, calls, which_key, vim, modeline_lines, feature_flags,
         instrumentation,
     },
@@ -601,35 +583,6 @@ impl AsRef<Option<String>> for AudioOutputDeviceName {
 impl From<Option<String>> for AudioOutputDeviceName {
     fn from(value: Option<String>) -> Self {
         Self(value)
-    }
-}
-
-/// Control what info is collected by Zed.
-#[with_fallible_options]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Debug, MergeFrom)]
-pub struct TelemetrySettingsContent {
-    /// Send debug info like crash reports.
-    ///
-    /// Default: true
-    pub diagnostics: Option<bool>,
-    /// Send anonymized usage data like what languages you're using Zed with.
-    ///
-    /// Default: true
-    pub metrics: Option<bool>,
-    /// Allow sending requests to Anthropic models that cannot be offered with
-    /// Zero Data Retention.
-    ///
-    /// Default: false
-    pub anthropic_retention: Option<bool>,
-}
-
-impl Default for TelemetrySettingsContent {
-    fn default() -> Self {
-        Self {
-            diagnostics: Some(true),
-            metrics: Some(true),
-            anthropic_retention: Some(false),
-        }
     }
 }
 
@@ -1090,9 +1043,6 @@ pub struct VimSettingsContent {
     pub custom_digraphs: Option<HashMap<String, Arc<str>>>,
     pub highlight_on_yank_duration: Option<u64>,
     pub cursor_shape: Option<CursorShapeSettings>,
-    /// When enabled, edit predictions are shown in Vim normal mode.
-    /// By default, edit predictions are only shown in insert and replace modes.
-    pub show_edit_predictions_in_normal_mode: Option<bool>,
 }
 
 #[derive(
@@ -1447,14 +1397,9 @@ pub struct SshConnection {
     pub projects: collections::BTreeSet<RemoteProject>,
     /// Name to use for this server in UI.
     pub nickname: Option<String>,
-    // By default Zed will download the binary to the host directly.
-    // If this is set to true, Zed will download the binary to your local machine,
-    // and then upload it over the SSH connection. Useful if your SSH server has
-    // limited outbound internet access.
-    pub upload_binary_over_ssh: Option<bool>,
 
     pub port_forwards: Option<Vec<SshPortForwardOption>>,
-    /// Timeout in seconds for SSH connection and downloading the remote server binary.
+    /// Timeout in seconds for the SSH connection.
     /// Defaults to 10 seconds if not specified.
     pub connection_timeout: Option<u16>,
 }

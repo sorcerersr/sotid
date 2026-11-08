@@ -4,15 +4,11 @@ use tree_sitter::{Query, QueryMatch};
 
 use crate::MigrationPatterns;
 use crate::patterns::{
-    SETTINGS_LANGUAGES_PATTERN, SETTINGS_NESTED_KEY_VALUE_PATTERN, SETTINGS_ROOT_KEY_VALUE_PATTERN,
+    SETTINGS_LANGUAGES_PATTERN, SETTINGS_ROOT_KEY_VALUE_PATTERN,
 };
 
 pub const SETTINGS_PATTERNS: MigrationPatterns = &[
     (SETTINGS_ROOT_KEY_VALUE_PATTERN, replace_setting_name),
-    (
-        SETTINGS_NESTED_KEY_VALUE_PATTERN,
-        replace_edit_prediction_provider_setting,
-    ),
     (SETTINGS_LANGUAGES_PATTERN, replace_setting_in_languages),
 ];
 
@@ -46,32 +42,6 @@ pub static SETTINGS_STRING_REPLACE: LazyLock<HashMap<&'static str, &'static str>
             ("inline_completions", "edit_predictions"),
         ])
     });
-
-pub fn replace_edit_prediction_provider_setting(
-    contents: &str,
-    mat: &QueryMatch,
-    query: &Query,
-) -> Option<(Range<usize>, String)> {
-    let parent_object_capture_ix = query.capture_index_for_name("parent_key")?;
-    let parent_object_range = mat
-        .nodes_for_capture_index(parent_object_capture_ix)
-        .next()?
-        .byte_range();
-    let parent_object_name = contents.get(parent_object_range)?;
-
-    let setting_name_ix = query.capture_index_for_name("setting_name")?;
-    let setting_range = mat
-        .nodes_for_capture_index(setting_name_ix)
-        .next()?
-        .byte_range();
-    let setting_name = contents.get(setting_range.clone())?;
-
-    if parent_object_name == "features" && setting_name == "inline_completion_provider" {
-        return Some((setting_range, "edit_prediction_provider".into()));
-    }
-
-    None
-}
 
 fn replace_setting_in_languages(
     contents: &str,

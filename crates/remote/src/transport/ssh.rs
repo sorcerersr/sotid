@@ -14,7 +14,6 @@ use futures::{
 };
 use gpui::{App, AppContext as _, AsyncApp, Task};
 use parking_lot::Mutex;
-use paths::remote_server_dir_relative;
 use release_channel::{AppVersion, ReleaseChannel};
 use rpc::proto::Envelope;
 use semver::Version;
@@ -152,7 +151,6 @@ pub struct SshConnectionOptions {
     pub connection_timeout: Option<u16>,
 
     pub nickname: Option<String>,
-    pub upload_binary_over_ssh: bool,
 }
 
 impl From<settings_content::SshConnection> for SshConnectionOptions {
@@ -164,7 +162,6 @@ impl From<settings_content::SshConnection> for SshConnectionOptions {
             password: None,
             args: Some(val.args),
             nickname: val.nickname,
-            upload_binary_over_ssh: val.upload_binary_over_ssh.unwrap_or_default(),
             port_forwards: val.port_forwards,
             connection_timeout: val.connection_timeout,
         }
@@ -276,7 +273,7 @@ impl RemoteEnvironment {
                 "AMD64" => RemoteArch::X86_64,
                 "ARM64" => RemoteArch::Aarch64,
                 architecture => anyhow::bail!(
-                    "Prebuilt remote servers are not yet available for windows-{architecture}. See https://zed.dev/docs/remote-development"
+                    "Sotid remote development is not yet supported for windows-{architecture}"
                 ),
             },
         };
@@ -721,7 +718,7 @@ impl RemoteConnection for SshRemoteConnection {
 }
 
 /// Check if the user already has an active SSH ControlMaster session for the
-/// given destination. See: https://github.com/zed-industries/zed/issues/45271
+/// given destination.
 #[cfg(not(windows))]
 async fn find_existing_control_master(
     connection_options: &SshConnectionOptions,
@@ -1027,7 +1024,7 @@ impl SshRemoteConnection {
             _ => version.to_string(),
         };
         let binary_name = format!(
-            "zed-remote-server-{}-{}{}",
+            "sotid-remote-server-{}-{}{}",
             release_channel.dev_name(),
             version_str,
             if self.ssh_platform.os.is_windows() {
@@ -1050,202 +1047,39 @@ impl SshRemoteConnection {
             .await
             .is_ok();
 
-        #[cfg(any(debug_assertions, feature = "build-remote-server-binary"))]
-        if let Some(remote_server_path) = super::build_remote_server_from_source(
-            &self.ssh_platform,
-            delegate.as_ref(),
-            binary_exists_on_server,
-            cx,
-        )
-        .await?
-        {
-            let tmp_path = paths::remote_server_dir_relative().join(
-                RelPath::from_unix_str(&format!(
-                    "download-{}-{}",
-                    std::process::id(),
-                    remote_server_path.file_name().unwrap().to_string_lossy()
-                ))
-                .unwrap(),
-            );
-            self.upload_local_server_binary(&remote_server_path, &tmp_path, delegate, cx)
-                .await?;
-            self.extract_server_binary(&dst_path, &tmp_path, delegate, cx)
-                .await?;
-            return Ok(dst_path.into());
-        }
-
         if binary_exists_on_server {
             return Ok(dst_path.into());
         }
 
-        let wanted_version = cx.update(|cx| match release_channel {
-            ReleaseChannel::Nightly => Ok(None),
-            ReleaseChannel::Dev => {
-                anyhow::bail!(
-                    "ZED_BUILD_REMOTE_SERVER is not set and no remote server exists at ({:?})",
-                    dst_path
-                )
-            }
-            _ => Ok(Some(AppVersion::global(cx))),
-        })?;
+        let Some(remote_server_path) = super::build_remote_server_from_source(
+            &self.ssh_platform,
+            delegate.as_ref(),
+            cx,
+        )
+        .await?
+        else {
+            anyhow::bail!(
+                "No remote server binary for {} is available: this installation ships no bundled \
+                 binary for that platform and SOTID_BUILD_REMOTE_SERVER is disabled. \n\
+                 Building from source requires a Sotid checkout; to use a prebuilt binary, set \
+                 SOTID_COPY_REMOTE_SERVER to its path.",
+                self.ssh_platform.os
+            );
+        };
 
-        let tmp_path_compressed = remote_server_dir_relative().join(
+        let tmp_path = paths::remote_server_dir_relative().join(
             RelPath::from_unix_str(&format!(
-                "{}-download-{}.{}",
-                binary_name,
+                "build-{}-{}",
                 std::process::id(),
-                if self.ssh_platform.os.is_windows() {
-                    "zip"
-                } else {
-                    "gz"
-                }
+                remote_server_path.file_name().unwrap().to_string_lossy()
             ))
             .unwrap(),
         );
-        if !self.socket.connection_options.upload_binary_over_ssh
-            && let Some(url) = delegate
-                .get_download_url(
-                    self.ssh_platform,
-                    release_channel,
-                    wanted_version.clone(),
-                    cx,
-                )
-                .await?
-        {
-            match self
-                .download_binary_on_server(&url, &tmp_path_compressed, delegate, cx)
-                .await
-            {
-                Ok(_) => {
-                    self.extract_server_binary(&dst_path, &tmp_path_compressed, delegate, cx)
-                        .await
-                        .context("extracting server binary")?;
-                    return Ok(dst_path.into());
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to download binary on server, attempting to download locally and then upload it the server: {e:#}",
-                    )
-                }
-            }
-        }
-
-        let src_path = delegate
-            .download_server_binary_locally(
-                self.ssh_platform,
-                release_channel,
-                wanted_version.clone(),
-                cx,
-            )
-            .await
-            .context("downloading server binary locally")?;
-        self.upload_local_server_binary(&src_path, &tmp_path_compressed, delegate, cx)
-            .await
-            .context("uploading server binary")?;
-        self.extract_server_binary(&dst_path, &tmp_path_compressed, delegate, cx)
-            .await
-            .context("extracting server binary")?;
+        self.upload_local_server_binary(&remote_server_path, &tmp_path, delegate, cx)
+            .await?;
+        self.extract_server_binary(&dst_path, &tmp_path, delegate, cx)
+            .await?;
         Ok(dst_path.into())
-    }
-
-    async fn download_binary_on_server(
-        &self,
-        url: &str,
-        tmp_path: &RelPath,
-        delegate: &Arc<dyn RemoteClientDelegate>,
-        cx: &mut AsyncApp,
-    ) -> Result<()> {
-        if let Some(parent) = tmp_path.parent() {
-            let res = self
-                .socket
-                .run_command(
-                    self.ssh_shell_kind,
-                    "mkdir",
-                    &["-p", parent.display(self.path_style()).as_ref()],
-                    true,
-                )
-                .await;
-            if !self.ssh_platform.os.is_windows() {
-                // mkdir fails on windows if the path already exists ...
-                res?;
-            }
-        }
-
-        delegate.set_status(Some("Downloading remote development server on host"), cx);
-
-        let connection_timeout = self
-            .socket
-            .connection_options
-            .connection_timeout
-            .unwrap_or(10)
-            .to_string();
-
-        match self
-            .socket
-            .run_command(
-                self.ssh_shell_kind,
-                "curl",
-                &[
-                    "-f",
-                    "-L",
-                    "--connect-timeout",
-                    &connection_timeout,
-                    url,
-                    "-o",
-                    &tmp_path.display(self.path_style()),
-                ],
-                true,
-            )
-            .await
-        {
-            Ok(_) => {}
-            Err(e) => {
-                if self
-                    .socket
-                    .run_command(self.ssh_shell_kind, "which", &["curl"], true)
-                    .await
-                    .is_ok()
-                {
-                    return Err(e);
-                }
-
-                log::info!("curl is not available, trying wget");
-                match self
-                    .socket
-                    .run_command(
-                        self.ssh_shell_kind,
-                        "wget",
-                        &[
-                            "--connect-timeout",
-                            &connection_timeout,
-                            "--tries",
-                            "1",
-                            url,
-                            "-O",
-                            &tmp_path.display(self.path_style()),
-                        ],
-                        true,
-                    )
-                    .await
-                {
-                    Ok(_) => {}
-                    Err(e) => {
-                        if self
-                            .socket
-                            .run_command(self.ssh_shell_kind, "which", &["wget"], true)
-                            .await
-                            .is_ok()
-                        {
-                            return Err(e);
-                        } else {
-                            anyhow::bail!("Neither curl nor wget is available");
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
     }
 
     async fn upload_local_server_binary(
@@ -1703,7 +1537,7 @@ impl SshSocket {
                 "AMD64" => RemoteArch::X86_64,
                 "ARM64" => RemoteArch::Aarch64,
                 arch => anyhow::bail!(
-                    "Prebuilt remote servers are not yet available for windows-{arch}. See https://zed.dev/docs/remote-development"
+                    "Sotid remote development is not yet supported for windows-{arch}"
                 ),
             },
         })
@@ -1978,7 +1812,6 @@ impl SshConnectionOptions {
             args: Some(args),
             password: None,
             nickname: None,
-            upload_binary_over_ssh: false,
             connection_timeout: None,
         })
     }

@@ -1,9 +1,7 @@
 #![allow(clippy::format_collect)]
 
-mod agent_registry_store;
 mod bookmark_store;
 mod color_extractor;
-mod context_server_store;
 mod debugger;
 mod dynamic_registration;
 mod git_store;
@@ -58,6 +56,7 @@ use parking_lot::Mutex;
 use paths::{config_dir, global_gitignore_path, tasks_file};
 use postage::stream::Stream as _;
 use pretty_assertions::{assert_eq, assert_matches};
+use rpc::{AnyProtoClient, NoopProtoClient};
 use project::{
     Event, TaskContexts,
     git_store::{GitStoreEvent, Repository, RepositoryEvent, StatusEntry, pending_op},
@@ -9367,7 +9366,7 @@ async fn test_rescan_and_remote_updates(cx: &mut gpui::TestAppContext) {
             0,
             ReplicaId::REMOTE_SERVER,
             metadata,
-            project.read(cx).client().into(),
+            AnyProtoClient::new(NoopProtoClient::new()),
             project.read(cx).path_style(cx),
             cx,
         )

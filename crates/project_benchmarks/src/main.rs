@@ -3,9 +3,7 @@ use std::{sync::Arc, time::Duration};
 use anyhow::anyhow;
 use askpass::EncryptedPassword;
 use clap::Parser;
-use client::{Client, UserStore};
 use futures::channel::oneshot;
-use gpui::AppContext as _;
 use gpui::TaskExt;
 use http_client::FakeHttpClient;
 use language::LanguageRegistry;
@@ -16,7 +14,6 @@ use project::{
 };
 use release_channel::ReleaseChannel;
 use remote::{ConnectionIdentifier, RemoteClientDelegate, SshConnectionOptions};
-use semver::Version;
 
 #[derive(Parser)]
 struct Args {
@@ -66,26 +63,6 @@ impl RemoteClientDelegate for BenchmarkRemoteClient {
         }
     }
 
-    fn get_download_url(
-        &self,
-        _platform: remote::RemotePlatform,
-        _release_channel: ReleaseChannel,
-        _version: Option<Version>,
-        _cx: &mut gpui::AsyncApp,
-    ) -> gpui::Task<gpui::Result<Option<String>>> {
-        unimplemented!()
-    }
-
-    fn download_server_binary_locally(
-        &self,
-        _platform: remote::RemotePlatform,
-        _release_channel: ReleaseChannel,
-        _version: Option<Version>,
-        _cx: &mut gpui::AsyncApp,
-    ) -> gpui::Task<gpui::Result<std::path::PathBuf>> {
-        unimplemented!()
-    }
-
     fn set_status(&self, status: Option<&str>, _: &mut gpui::AsyncApp) {
         if let Some(status) = status {
             println!("SSH status: {status}");
@@ -130,11 +107,9 @@ fn main() -> Result<(), anyhow::Error> {
     gpui_platform::headless().run(|cx| {
         release_channel::init_test(semver::Version::new(0, 0, 0), ReleaseChannel::Dev, cx);
         settings::init(cx);
-        let client = Client::production(cx);
         let http_client = FakeHttpClient::with_200_response();
         let (_, rx) = watch::channel(None);
         let node = NodeRuntime::new(http_client, None, rx);
-        let user_store = cx.new(|cx| UserStore::new(client.clone(), cx));
         let registry = Arc::new(LanguageRegistry::new(cx.background_executor().clone()));
         let fs = RealFs::new(None, cx.background_executor().clone());
 
@@ -152,13 +127,11 @@ fn main() -> Result<(), anyhow::Error> {
                     let (_tx, rx) = oneshot::channel();
                     let remote_client =  cx.update(|cx| remote::RemoteClient::new(ConnectionIdentifier::setup(), remote_connection, rx, delegate.clone(), cx )).await?.ok_or_else(|| anyhow!("ssh initialization returned None"))?;
 
-                    cx.update(|cx| Project::remote(remote_client,  client, node, user_store, registry, fs, false, cx))
+                    cx.update(|cx| Project::remote(remote_client, node, registry, fs, false, cx))
                 } else {
                     println!("Setting up local project");
                     cx.update(|cx| Project::local(
-                    client,
                     node,
-                    user_store,
                     registry,
                     fs,
                     Some(Default::default()),

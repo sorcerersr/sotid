@@ -1,4 +1,4 @@
-//! Baseline interface of Tasks in Zed: all tasks in Zed are intended to use those for implementing their own logic.
+//! Baseline interface of Tasks in Sotid: all tasks in Sotid are intended to use those for implementing their own logic.
 
 mod adapter_schema;
 mod debug_format;
@@ -20,7 +20,7 @@ use std::sync::Arc;
 pub use adapter_schema::{AdapterSchema, AdapterSchemas};
 pub use debug_format::{
     AttachRequest, BuildTaskDefinition, DebugRequest, DebugScenario, DebugTaskFile, LaunchRequest,
-    Request, TcpArgumentsTemplate, ZedDebugConfig,
+    Request, TcpArgumentsTemplate, SotidDebugConfig,
 };
 pub use task_template::{
     DebugArgsRequest, HideStrategy, RevealStrategy, SaveStrategy, TaskHook, TaskTemplate,
@@ -30,14 +30,14 @@ pub use util::shell::{Shell, ShellKind};
 pub use util::shell_builder::ShellBuilder;
 pub use vscode_debug_format::VsCodeDebugTaskFile;
 pub use vscode_format::VsCodeTaskFile;
-pub use zed_actions::RevealTarget;
+pub use sotid_actions::RevealTarget;
 
 /// Task identifier, unique within the application.
 /// Based on it, task reruns and terminal tabs are managed.
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize)]
 pub struct TaskId(pub String);
 
-/// Contains all information needed by Zed to spawn a new terminal tab for the given task.
+/// Contains all information needed by Sotid to spawn a new terminal tab for the given task.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct SpawnInTerminal {
     /// Id of the task to use when determining task tab affinity.
@@ -146,7 +146,7 @@ impl ResolvedTask {
     }
 }
 
-/// Variables, available for use in [`TaskContext`] when a Zed's [`TaskTemplate`] gets resolved into a [`ResolvedTask`].
+/// Variables, available for use in [`TaskContext`] when a Sotid's [`TaskTemplate`] gets resolved into a [`ResolvedTask`].
 /// Name of the variable must be a valid shell variable identifier, which generally means that it is
 /// a word  consisting only  of alphanumeric characters and underscores,
 /// and beginning with an alphabetic character or an  underscore.

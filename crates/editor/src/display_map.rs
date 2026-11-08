@@ -172,13 +172,11 @@ pub enum HighlightKey {
     DebugStackFrameLine,
     DocumentHighlightRead,
     DocumentHighlightWrite,
-    EditPredictionHighlight,
     Editor,
     HighlightOnYank,
     HighlightsTreeView(usize),
     HoverState,
     HoveredLinkState,
-    InlineAssist,
     InputComposition,
     MatchingBracket,
     NavigationOverlay(NavigationOverlayKey),
@@ -1395,16 +1393,9 @@ pub(crate) struct Highlights<'a> {
     pub styles: HighlightStyles,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct EditPredictionStyles {
-    pub insertion: HighlightStyle,
-    pub whitespace: HighlightStyle,
-}
-
 #[derive(Default, Debug, Clone, Copy)]
 pub struct HighlightStyles {
     pub inlay_hint: Option<HighlightStyle>,
-    pub edit_prediction: Option<EditPredictionStyles>,
 }
 
 #[derive(Clone)]
@@ -1925,7 +1916,6 @@ impl DisplaySnapshot {
             language_aware,
             HighlightStyles {
                 inlay_hint: Some(editor_style.inlay_hints_style),
-                edit_prediction: Some(editor_style.edit_prediction_styles),
             },
         )
         .flat_map({
@@ -3291,7 +3281,7 @@ pub mod tests {
                     vec![
                         Inlay::mock_hint(0, position, " é界🙂 "),
                         Inlay::mock_hint(1, position, "λ"),
-                        Inlay::edit_prediction(0, position, "P"),
+                        Inlay::mock_hint(0, position, "P"),
                         Inlay::mock_hint(2, end_position, "z"),
                     ],
                     cx,
@@ -3446,7 +3436,7 @@ pub mod tests {
         let buffer_snapshot = buffer.read(cx).snapshot(cx);
         let hint = Inlay::mock_hint(0, buffer_snapshot.anchor_after(MultiBufferOffset(2)), "X");
         let newline =
-            Inlay::edit_prediction(1, buffer_snapshot.anchor_after(MultiBufferOffset(1)), "\n");
+            Inlay::mock_hint(1, buffer_snapshot.anchor_after(MultiBufferOffset(1)), "\n");
         let map = inlay_test_map(buffer, test_font(), px(14.0), None, cx);
         let snapshot = map.update(cx, |map, cx| {
             map.splice_inlays(&[], vec![hint.clone(), newline], cx);
@@ -3617,7 +3607,7 @@ pub mod tests {
         map.update(cx, |map, cx| {
             map.splice_inlays(
                 &[],
-                vec![Inlay::edit_prediction(
+                vec![Inlay::mock_hint(
                     0,
                     buffer_snapshot.anchor_after(MultiBufferOffset(0)),
                     "\n",

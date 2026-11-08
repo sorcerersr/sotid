@@ -124,12 +124,8 @@ impl PlatformTitleBar {
         SystemWindowTabs::init(cx);
     }
 
-    fn sidebar_render_state(&self, cx: &App) -> SidebarRenderState {
-        self.multi_workspace
-            .as_ref()
-            .and_then(|mw| mw.upgrade())
-            .map(|mw| mw.read(cx).sidebar_render_state(cx))
-            .unwrap_or_default()
+    fn sidebar_render_state(&self, _cx: &App) -> SidebarRenderState {
+        SidebarRenderState::default()
     }
 
     pub fn is_multi_workspace_enabled(cx: &App) -> bool {

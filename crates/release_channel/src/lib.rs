@@ -30,7 +30,7 @@ fn compile_time_release_channel_name() -> String {
 
 #[cfg(not(__do_not_set_zed_release_channel))]
 fn compile_time_release_channel_name() -> String {
-    include_str!("../../zed/RELEASE_CHANNEL").trim().to_string()
+    include_str!("../../sotid/RELEASE_CHANNEL").trim().to_string()
 }
 
 #[doc(hidden)]
@@ -101,8 +101,8 @@ impl AppVersion {
         build_id: Option<&str>,
         commit_sha: Option<AppCommitSha>,
     ) -> Version {
-        let mut version: Version = if let Ok(from_env) = env::var("ZED_APP_VERSION") {
-            from_env.parse().expect("invalid ZED_APP_VERSION")
+        let mut version: Version = if let Ok(from_env) = env::var("SOTID_APP_VERSION") {
+            from_env.parse().expect("invalid SOTID_APP_VERSION")
         } else {
             pkg_version.parse().expect("invalid version in Cargo.toml")
         };

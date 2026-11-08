@@ -3571,12 +3571,13 @@ async fn test_deleted_remote_history_items_not_shown(
 
     let (options, session, _) = RemoteClient::fake_server(cx, server_cx);
     server_cx.update(HeadlessProject::init);
+    let server_http_client = server_cx.app.borrow().http_client();
     let _headless_project = server_cx.new(|cx| {
         HeadlessProject::new(
             HeadlessAppState {
                 session,
                 fs: server_app_state.fs.clone(),
-                http_client: server_app_state.client.http_client(),
+                http_client: server_http_client,
                 node_runtime: server_app_state.node_runtime.clone(),
                 languages: server_app_state.languages.clone(),
                 extension_host_proxy: Arc::default(),
@@ -3590,12 +3591,10 @@ async fn test_deleted_remote_history_items_not_shown(
     let remote = RemoteClient::connect_mock(options, cx).await;
 
     let project = cx.update(|cx| {
-        Project::init(&app_state.client, cx);
+        Project::init(cx);
         Project::remote(
             remote,
-            app_state.client.clone(),
             app_state.node_runtime.clone(),
-            app_state.user_store.clone(),
             app_state.languages.clone(),
             app_state.fs.clone(),
             false,
@@ -5112,7 +5111,6 @@ fn collect_search_matches(picker: &Picker<FileFinderDelegate>) -> SearchEntries 
                 search_entries.search_matches.push(path_match.0.clone());
             }
             Match::CreateNew(_) => {}
-            Match::Channel { .. } => {}
         }
     }
     search_entries
@@ -5336,7 +5334,6 @@ fn assert_match_at_position(
         Match::History { path, .. } => path.absolute.file_name().and_then(|s| s.to_str()),
         Match::Search(path_match) => path_match.0.path.file_name(),
         Match::CreateNew(project_path) => project_path.path.file_name(),
-        Match::Channel { channel_name, .. } => Some(channel_name.as_str()),
     }
     .unwrap();
     assert_eq!(match_file_name, expected_file_name);

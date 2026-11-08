@@ -1,9 +1,9 @@
-// Zed keymap
+// Sotid keymap
 //
-// For information on binding keys, see the Zed
-// documentation: https://zed.dev/docs/key-bindings
+// For information on binding keys, see the Sotid
+// documentation: https://github.com/sotid/sotid/blob/main/docs/src/key-bindings.md
 //
-// To see the default key bindings run `zed: open default keymap`
+// To see the default key bindings run `sotid: open default keymap`
 // from the command palette.
 [
   {

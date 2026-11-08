@@ -18,6 +18,7 @@ use language::{
 use menu::Cancel;
 use pretty_assertions::assert_eq;
 use project::{FakeFs, ProjectPath};
+use proto::ErrorCode;
 use serde_json::json;
 use settings::{FolderIndicator, ProjectPanelAutoOpenSettings, SettingsStore, SplicingVec};
 use smallvec::smallvec;
@@ -6355,8 +6356,8 @@ fn test_explain_move_error() {
         explained_message
     );
 
-    let remote_collision = client::RpcError::from_proto(
-        &client::proto::Error {
+    let remote_collision = proto::RpcError::from_proto(
+        &proto::Error {
             message: "renaming \"/root/a/1.json\" into \"/root/1.json\": File exists (os error 17)"
                 .to_string(),
             code: ErrorCode::AlreadyExists as i32,

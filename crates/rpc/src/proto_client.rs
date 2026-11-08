@@ -82,7 +82,6 @@ pub trait ProtoClient: Send + Sync {
 
     fn message_handler_set(&self) -> &parking_lot::Mutex<ProtoMessageHandlerSet>;
 
-    fn is_via_collab(&self) -> bool;
     fn has_wsl_interop(&self) -> bool;
 }
 
@@ -220,10 +219,6 @@ impl AnyProtoClient {
                 .clone(),
             request_ids: REQUEST_IDS.get_or_init(RequestIds::default).clone(),
         }))
-    }
-
-    pub fn is_via_collab(&self) -> bool {
-        self.0.client.is_via_collab()
     }
 
     pub fn request<T: RequestMessage>(
@@ -398,16 +393,10 @@ impl AnyProtoClient {
                             Response::GetDefinitionResponse(response) => {
                                 to_any_envelope(&envelope, response)
                             }
-                            Response::GetEditPredictionDefinitionResponse(response) => {
-                                to_any_envelope(&envelope, response)
-                            }
                             Response::GetDeclarationResponse(response) => {
                                 to_any_envelope(&envelope, response)
                             }
                             Response::GetTypeDefinitionResponse(response) => {
-                                to_any_envelope(&envelope, response)
-                            }
-                            Response::GetEditPredictionTypeDefinitionResponse(response) => {
                                 to_any_envelope(&envelope, response)
                             }
                             Response::GetImplementationResponse(response) => {
@@ -693,9 +682,6 @@ impl ProtoClient for NoopProtoClient {
     }
     fn message_handler_set(&self) -> &parking_lot::Mutex<ProtoMessageHandlerSet> {
         &self.handler_set
-    }
-    fn is_via_collab(&self) -> bool {
-        false
     }
     fn has_wsl_interop(&self) -> bool {
         false

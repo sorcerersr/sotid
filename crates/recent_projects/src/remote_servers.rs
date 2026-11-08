@@ -12,7 +12,6 @@ use dev_container::{
     start_dev_container_with_config,
 };
 use editor::Editor;
-use extension_host::ExtensionStore;
 use filter::{FilterData, FilteredServer};
 use futures::{FutureExt, StreamExt as _, channel::oneshot, future::Shared};
 use gpui::{
@@ -492,7 +491,6 @@ impl ProjectPicker {
                             .log_err()?;
                         cx.open_window(options, |window, cx| {
                             let workspace = cx.new(|cx| {
-                                telemetry::event!("SSH Project Created");
                                 Workspace::new(None, project.clone(), app_state.clone(), window, cx)
                             });
                             cx.new(|cx| MultiWorkspace::new(workspace, window, cx))
@@ -1628,7 +1626,6 @@ impl RemoteServerProjects {
                 Some(Some(client)) => this
                     .update_in(cx, |this, window, cx| {
                         info!("ssh server created");
-                        telemetry::event!("SSH Server Created");
                         this.retained_connections.push(client);
                         this.add_ssh_server(connection_options, cx);
                         this.mode = Mode::default_mode(&this.ssh_config_servers, cx);
@@ -1701,7 +1698,6 @@ impl RemoteServerProjects {
         let creating = cx.spawn_in(window, async move |this, cx| {
             match connection.await {
                 Some(Some(client)) => this.update_in(cx, |this, window, cx| {
-                    telemetry::event!("WSL Distro Added");
                     this.retained_connections.push(client);
                     let Some(fs) = this
                         .workspace
@@ -1835,9 +1831,7 @@ impl RemoteServerProjects {
                             session.read(cx).path_style(),
                             project::Project::remote(
                                 session,
-                                app_state.client.clone(),
                                 app_state.node_runtime.clone(),
-                                app_state.user_store.clone(),
                                 app_state.languages.clone(),
                                 app_state.fs.clone(),
                                 true,
@@ -2137,7 +2131,6 @@ impl RemoteServerProjects {
                     projects: BTreeSet::new(),
                     nickname: None,
                     args: connection_options.args.unwrap_or_default(),
-                    upload_binary_over_ssh: None,
                     port_forwards: connection_options.port_forwards,
                     connection_timeout: connection_options.connection_timeout,
                 })
@@ -2278,16 +2271,6 @@ impl RemoteServerProjects {
                         return;
                     }
                 };
-            cx.update(|_, cx| {
-                ExtensionStore::global(cx).update(cx, |this, cx| {
-                    for extension in &dev_container_connection.extension_ids {
-                        log::info!("Installing extension {extension} from devcontainer");
-                        this.install_latest_extension(Arc::from(extension.clone()), cx);
-                    }
-                })
-            })
-            .log_err();
-
             entity
                 .update(cx, |this, cx| {
                     this.allow_dismissal = true;

@@ -504,49 +504,6 @@ async fn test_log_store_does_not_retain_language_servers(cx: &mut TestAppContext
             .is_none()
     );
 }
-
-#[gpui::test]
-async fn test_log_store_removes_unavailable_copilot_server(cx: &mut TestAppContext) {
-    init_test(cx);
-
-    let fs = FakeFs::new(cx.background_executor.clone());
-    fs.insert_tree(path!("/the-root"), json!({ "test.rs": "" }))
-        .await;
-    let project = Project::test(fs, [path!("/the-root").as_ref()], cx).await;
-    let server_id = LanguageServerId(100);
-    let server_kind = LanguageServerKind::Supplementary {
-        project: project.downgrade(),
-    };
-    let server_key = LanguageServerLogKey::new(server_kind, server_id);
-    let log_store = cx.new(|cx| LogStore::new(false, cx));
-    log_store.update(cx, |log_store, cx| log_store.add_project(&project, cx));
-
-    let (server, _fake_server) = lsp::FakeLanguageServer::new(
-        server_id,
-        lsp::LanguageServerBinary {
-            path: "path/to/copilot-language-server".into(),
-            arguments: Vec::new(),
-            env: None,
-        },
-        "copilot".to_string(),
-        Default::default(),
-        &mut cx.to_async(),
-    );
-    log_store.update(cx, |log_store, cx| {
-        log_store.sync_copilot_for_project(&project.downgrade(), Some(Arc::new(server)), cx);
-    });
-    assert!(log_store.read_with(cx, |log_store, _| {
-        log_store.language_servers.contains_key(&server_key)
-    }));
-
-    log_store.update(cx, |log_store, cx| {
-        log_store.sync_copilot_for_project(&project.downgrade(), None, cx);
-    });
-    assert!(!log_store.read_with(cx, |log_store, _| {
-        log_store.language_servers.contains_key(&server_key)
-    }));
-}
-
 #[gpui::test]
 async fn test_local_views_and_downstream_peers_own_rpc_streams_independently(
     cx: &mut TestAppContext,
@@ -723,72 +680,6 @@ async fn test_local_views_and_downstream_peers_own_rpc_streams_independently(
             .is_some_and(|state| state.rpc_state.is_none())
     }));
 }
-
-#[gpui::test]
-async fn test_unsharing_releases_only_project_downstream_rpc_streams(cx: &mut TestAppContext) {
-    init_test(cx);
-
-    let fs = FakeFs::new(cx.background_executor.clone());
-    let project = Project::test(fs.clone(), [], cx).await;
-    let other_project = Project::test(fs, [], cx).await;
-    let server_keys = [
-        (project.downgrade(), LanguageServerId(100)),
-        (project.downgrade(), LanguageServerId(101)),
-        (other_project.downgrade(), LanguageServerId(100)),
-    ]
-    .map(|(project, server_id)| {
-        LanguageServerLogKey::new(LanguageServerKind::Local { project }, server_id)
-    });
-    let [_, local_view_key, _] = &server_keys;
-    let log_store = cx.new(|cx| LogStore::new(false, cx));
-    log_store.update(cx, |store, cx| {
-        store.add_project(&project, cx);
-        store.add_project(&other_project, cx);
-        for server_key in &server_keys {
-            store.add_language_server(
-                server_key.kind.clone(),
-                server_key.server_id,
-                None,
-                None,
-                None,
-                cx,
-            );
-            for peer_id in [PeerId { owner_id: 1, id: 1 }, PeerId { owner_id: 2, id: 2 }] {
-                store.set_downstream_log_stream(server_key, peer_id, LogKind::Rpc, true, cx);
-            }
-        }
-        store.retain_view_log_stream(local_view_key, LogKind::Rpc, cx);
-    });
-
-    project
-        .update(cx, |project, cx| project.shared(1, cx))
-        .expect("project should be shareable");
-    project
-        .update(cx, |project, cx| project.unshare(cx))
-        .expect("shared project should unshare");
-
-    log_store.update(cx, |store, cx| {
-        for (server_key, rpc_enabled) in server_keys.iter().zip([false, true, true]) {
-            assert_eq!(
-                store
-                    .language_servers
-                    .get(server_key)
-                    .map(|state| state.rpc_state.is_some()),
-                Some(rpc_enabled),
-                "unsharing must preserve local views and other projects"
-            );
-        }
-        store.release_view_log_stream(local_view_key, LogKind::Rpc, cx);
-        assert!(
-            store
-                .language_servers
-                .get(local_view_key)
-                .is_some_and(|state| state.rpc_state.is_none()),
-            "unsharing must release every downstream peer even while a local view owns the stream"
-        );
-    });
-}
-
 #[gpui::test]
 async fn test_lsp_log_view(cx: &mut TestAppContext) {
     zlog::init_test();

@@ -231,7 +231,7 @@ pub fn init(cx: &mut App) {
             cx.notify();
         });
         workspace.register_action(
-            move |workspace, action: &zed_actions::search::NewSearchInDirectory, window, cx| {
+            move |workspace, action: &sotid_actions::search::NewSearchInDirectory, window, cx| {
                 ProjectSearchView::new_search_with_filter(
                     workspace,
                     action.directory.clone(),
@@ -1183,9 +1183,6 @@ impl Item for ProjectSearchView {
             .unwrap_or_else(|| "Project Search".into())
     }
 
-    fn telemetry_event_text(&self) -> Option<&'static str> {
-        Some("Project Search Opened")
-    }
 
     fn for_each_project_item(
         &self,
@@ -5087,7 +5084,7 @@ pub mod tests {
         window
             .update(cx, |_, window, cx| {
                 window.dispatch_action(
-                    Box::new(zed_actions::search::NewSearchInDirectory { directory }),
+                    Box::new(sotid_actions::search::NewSearchInDirectory { directory }),
                     cx,
                 );
             })

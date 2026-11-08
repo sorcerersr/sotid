@@ -1,121 +1,38 @@
 ---
 title: Uninstall
-description: "This guide covers how to uninstall Zed on different operating systems."
+description: "This guide covers how to uninstall Sotid on different operating systems."
 ---
 
 # Uninstall
 
-This guide covers how to uninstall Zed on different operating systems.
-
-## macOS
-
-### Standard Installation
-
-If you installed Zed by downloading it from the website:
-
-1. Quit Zed if it's running
-2. Open Finder and go to your Applications folder
-3. Drag Zed to the Trash (or right-click and select "Move to Trash")
-4. Empty the Trash
-
-### Homebrew Installation
-
-If you installed Zed using Homebrew, use the following command:
+Sotid is installed from source by `script/install.sh`, so uninstallation is handled by
+`script/uninstall.sh`. Run it from the root of your Sotid checkout:
 
 ```sh
-brew uninstall --cask zed
+./script/uninstall.sh
 ```
 
-Or for the preview version:
+The script removes the installed binaries and then prompts you to keep or delete your
+preferences.
 
-```sh
-brew uninstall --cask zed@preview
-```
+## What gets removed
 
-### Removing User Data (Optional)
+- `~/.local/sotid.app` — the assembled application directory (Linux)
+- `~/.local/bin/sotid` — the binary symlink
+- `~/.local/share/applications/de.sorcarion.Sotid.desktop` — the desktop entry (Linux)
+- `~/.config/sotid` — your preferences and data (only if you choose to remove them)
 
-To completely remove all Zed configuration files and data:
+## Keeping your preferences
 
-1. Open Finder
-2. Press `Cmd + Shift + G` to open "Go to Folder"
-3. Delete the following directories if they exist:
-   - `~/Library/Application Support/Zed`
-   - `~/Library/Saved Application State/dev.zed.Zed.savedState`
-   - `~/Library/Logs/Zed`
-   - `~/Library/Caches/dev.zed.Zed`
-   - `~/Library/Caches/Zed`
-   - `~/.config/zed`
-   - `~/.local/state/Zed`
+If you want to keep your configuration and data, answer `n` when prompted. Your
+`~/.config/sotid` directory will be left in place, so a future reinstall picks up where
+you left off.
 
-## Linux
+## Manual removal
 
-### Standard Uninstall
+If the script is unavailable, you can remove the installed files manually:
 
-If Zed was installed using the default installation script, run:
-
-```sh
-zed --uninstall
-```
-
-You'll be prompted whether to keep or delete your preferences. After making a choice, you should see a message that Zed was successfully uninstalled.
-
-If the `zed` command is not found in your PATH, try:
-
-```sh
-$HOME/.local/bin/zed --uninstall
-```
-
-or:
-
-```sh
-$HOME/.local/zed.app/bin/zed --uninstall
-```
-
-### Package Manager
-
-If you installed Zed using a package manager (such as Flatpak, Snap, or a distribution-specific package manager), consult that package manager's documentation for uninstallation instructions.
-
-### Manual Removal
-
-If the uninstall command fails or Zed was installed to a custom location, you can manually remove:
-
-- Installation directory: `~/.local/zed.app` (or your custom installation path)
-- Binary symlink: `~/.local/bin/zed`
-- Configuration and data: `~/.config/zed`
-
-## Windows
-
-### Standard Installation
-
-1. Quit Zed if it's running
-2. Open Settings (Windows key + I)
-3. Go to "Apps" > "Installed apps" (or "Apps & features" on Windows 10)
-4. Search for "Zed"
-5. Click the three dots menu next to Zed and select "Uninstall"
-6. Follow the prompts to complete the uninstallation
-
-Alternatively, you can:
-
-1. Open the Start menu
-2. Right-click on Zed
-3. Select "Uninstall"
-
-### Removing User Data (Optional)
-
-To completely remove all Zed configuration files and data:
-
-1. Press `Windows key + R` to open Run
-2. Type `%APPDATA%` and press Enter
-3. Delete the `Zed` folder if it exists
-4. Press `Windows key + R` again, type `%LOCALAPPDATA%` and press Enter
-5. Delete the `Zed` folder if it exists
-
-## Troubleshooting
-
-If you encounter issues during uninstallation:
-
-- **macOS/Windows**: Ensure Zed is completely quit before attempting to uninstall. Check Activity Manager (macOS) or Task Manager (Windows) for any running Zed processes.
-- **Linux**: If the uninstall script fails, check the error message and consider manual removal of the directories listed above.
-- **All platforms**: If you want to start fresh while keeping Zed installed, you can delete the configuration directories instead of uninstalling the application entirely.
-
-For additional help, see our [Linux-specific documentation](./linux.md) or visit the [Zed community](https://zed.dev/community-links).
+- Installation directory: `~/.local/sotid.app`
+- Binary symlink: `~/.local/bin/sotid`
+- Desktop entry: `~/.local/share/applications/de.sorcarion.Sotid.desktop`
+- Configuration and data: `~/.config/sotid`

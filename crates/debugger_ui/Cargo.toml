@@ -47,7 +47,6 @@ itertools.workspace = true
 language.workspace = true
 log.workspace = true
 menu.workspace = true
-notifications.workspace = true
 parking_lot.workspace = true
 parse_int.workspace = true
 paths.workspace = true
@@ -73,7 +72,7 @@ ui_input.workspace = true
 unindent = { workspace = true, optional = true }
 util.workspace = true
 workspace.workspace = true
-zed_actions.workspace = true
+sotid_actions.workspace = true
 
 [dev-dependencies]
 command_palette_hooks.workspace = true

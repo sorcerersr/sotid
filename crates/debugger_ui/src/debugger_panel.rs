@@ -46,7 +46,7 @@ use workspace::{
     Item, Pane, Workspace,
     dock::{DockPosition, Panel, PanelEvent},
 };
-use zed_actions::debug_panel::ToggleFocus;
+use sotid_actions::debug_panel::ToggleFocus;
 
 pub struct DebuggerHistoryFeatureFlag;
 
@@ -646,7 +646,7 @@ impl DebugPanel {
             IconButton::new("debug-edit-debug-json", IconName::Code)
                 .icon_size(IconSize::Small)
                 .on_click(|_, window, cx| {
-                    window.dispatch_action(zed_actions::OpenProjectDebugTasks.boxed_clone(), cx);
+                    window.dispatch_action(sotid_actions::OpenProjectDebugTasks.boxed_clone(), cx);
                 })
                 .tooltip(Tooltip::text("Edit debug.json"))
         };
@@ -654,7 +654,7 @@ impl DebugPanel {
         let documentation_button = || {
             IconButton::new("debug-open-documentation", IconName::CircleHelp)
                 .icon_size(IconSize::Small)
-                .on_click(move |_, _, cx| cx.open_url("https://zed.dev/docs/debugger"))
+                .on_click(|_, _, cx| cx.open_url(""))
                 .tooltip(Tooltip::text("Open Documentation"))
         };
 
@@ -1192,10 +1192,10 @@ impl DebugPanel {
                     return Task::ready(Err(anyhow!("Couldn't get worktree path")));
                 };
 
-                let serialized_scenario = serde_json::to_value(scenario);
+                let serialisotid_scenario = serde_json::to_value(scenario);
 
                 cx.spawn_in(window, async move |workspace, cx| {
-                    let serialized_scenario = serialized_scenario?;
+                    let serialisotid_scenario = serialisotid_scenario?;
                     let fs =
                         workspace.read_with(cx, |workspace, _| workspace.app_state().fs.clone())?;
 
@@ -1239,7 +1239,7 @@ impl DebugPanel {
                         .update(|_, cx| editor.act_as::<Editor>(cx))?
                         .context("expected editor")?;
 
-                    let new_scenario = serde_json_lenient::to_string_pretty(&serialized_scenario)?
+                    let new_scenario = serde_json_lenient::to_string_pretty(&serialisotid_scenario)?
                         .lines()
                         .map(|l| format!("  {l}"))
                         .join("\n");
@@ -1818,7 +1818,7 @@ impl Render for DebugPanel {
                                 )
                                 .on_click(|_, window, cx| {
                                     window.dispatch_action(
-                                        zed_actions::OpenProjectDebugTasks.boxed_clone(),
+                                        sotid_actions::OpenProjectDebugTasks.boxed_clone(),
                                         cx,
                                     );
                                 }),
@@ -1830,7 +1830,7 @@ impl Render for DebugPanel {
                                         .size(IconSize::Small)
                                         .color(Color::Muted),
                                 )
-                                .on_click(|_, _, cx| cx.open_url("https://zed.dev/docs/debugger")),
+                                .on_click(|_, _, cx| cx.open_url("")),
                         )
                         .child(
                             Button::new(
@@ -1844,9 +1844,9 @@ impl Render for DebugPanel {
                             )
                             .on_click(|_, window, cx| {
                                 window.dispatch_action(
-                                    zed_actions::Extensions {
+                                    sotid_actions::Extensions {
                                         category_filter: Some(
-                                            zed_actions::ExtensionCategoryFilter::DebugAdapters,
+                                            sotid_actions::ExtensionCategoryFilter::DebugAdapters,
                                         ),
                                         id: None,
                                     }

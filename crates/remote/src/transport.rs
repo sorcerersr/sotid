@@ -33,7 +33,7 @@ fn parse_platform(output: &str) -> Result<RemotePlatform> {
         "Darwin" => RemoteOs::MacOs,
         "Linux" => RemoteOs::Linux,
         _ => anyhow::bail!(
-            "Prebuilt remote servers are not yet available for {os:?}. See https://zed.dev/docs/remote-development"
+            "Sotid remote development is not yet supported for {os:?}"
         ),
     };
 
@@ -48,7 +48,7 @@ fn parse_platform(output: &str) -> Result<RemotePlatform> {
         RemoteArch::X86_64
     } else {
         anyhow::bail!(
-            "Prebuilt remote servers are not yet available for {arch:?}. See https://zed.dev/docs/remote-development"
+            "Sotid remote development is not yet supported for {arch:?}"
         )
     };
 
@@ -61,7 +61,7 @@ fn parse_platform(output: &str) -> Result<RemotePlatform> {
 /// The output is parsed by [`parse_os_version`].
 pub(crate) fn os_version_command(os: RemoteOs) -> (&'static str, &'static [&'static str]) {
     match os {
-        // Matches the `/etc/os-release` parsing in `client::telemetry::os_version`.
+        // Matches the `/etc/os-release` parsing convention.
         RemoteOs::Linux => ("cat", &["/etc/os-release"]),
         RemoteOs::MacOs => ("sw_vers", &["-productVersion"]),
         // Prints e.g. "Microsoft Windows [Version 10.0.19045.5011]".
@@ -70,7 +70,7 @@ pub(crate) fn os_version_command(os: RemoteOs) -> (&'static str, &'static [&'sta
 }
 
 /// Parses the output of [`os_version_command`] into a human-readable version
-/// string, matching the conventions used by `client::telemetry::os_version`.
+/// string, matching the OS-version conventions used for telemetry.
 ///
 /// For Linux this is `"{ID} {VERSION_ID}"` (e.g. `"ubuntu 24.04"`); for macOS it
 /// is the product version (e.g. `"15.6.1"`); for Windows it is the
@@ -100,7 +100,7 @@ pub(crate) fn parse_os_version(os: RemoteOs, output: &str) -> Option<String> {
 ///
 /// Scans for the first dotted run of integers (rather than relying on the
 /// surrounding, potentially localized, text) and drops the trailing revision so
-/// the format matches `client::telemetry::os_version` on Windows.
+/// the format matches the `major.minor.build` convention used for Windows telemetry.
 fn parse_windows_version(output: &str) -> Option<String> {
     output
         .split(|c: char| !c.is_ascii_digit() && c != '.')
@@ -258,40 +258,77 @@ fn handle_rpc_messages_over_child_process_stdio(
     })
 }
 
-#[cfg(any(debug_assertions, feature = "build-remote-server-binary"))]
+/// The file name of the bundled remote server binary for the given platform,
+/// if this app ships one. Bundled binaries are stored next to the running
+/// executable and are only built for the Linux targets.
+pub(crate) fn bundled_remote_server_name(platform: &crate::RemotePlatform) -> Option<&'static str> {
+    (platform.os == crate::RemoteOs::Linux).then(|| match platform.arch {
+        crate::RemoteArch::X86_64 => "sotid-remote-server-linux-x86_64.gz",
+        crate::RemoteArch::Aarch64 => "sotid-remote-server-linux-aarch64.gz",
+    })
+}
+
+/// Resolves a bundled remote server binary for the given platform within
+/// `base_dir`, if present.
+pub(crate) fn find_bundled_remote_server_in(
+    base_dir: &std::path::Path,
+    platform: &crate::RemotePlatform,
+) -> Option<std::path::PathBuf> {
+    let name = bundled_remote_server_name(platform)?;
+    let path = base_dir.join(name);
+    path.is_file().then_some(path)
+}
+
+/// Resolves a bundled remote server binary shipped with this installation,
+/// if one matches the given platform. Bundled binaries live next to the
+/// running executable. Dev builds ship none, so this returns `None` there and
+/// the caller falls back to building from source.
+pub(crate) fn find_bundled_remote_server(
+    platform: &crate::RemotePlatform,
+) -> Option<std::path::PathBuf> {
+    let exe_path = std::env::current_exe().ok()?;
+    let exe_dir = exe_path.parent()?;
+    find_bundled_remote_server_in(exe_dir, platform)
+}
+
 async fn build_remote_server_from_source(
     platform: &crate::RemotePlatform,
     delegate: &dyn crate::RemoteClientDelegate,
-    binary_exists_on_server: bool,
     cx: &mut AsyncApp,
 ) -> Result<Option<std::path::PathBuf>> {
     use std::env::VarError;
     use util::command::{Command, Stdio, new_command};
 
-    if let Ok(path) = std::env::var("ZED_COPY_REMOTE_SERVER") {
+    if let Ok(path) = std::env::var("SOTID_COPY_REMOTE_SERVER") {
         let path = std::path::PathBuf::from(path);
         if path.exists() {
             return Ok(Some(path));
         } else {
             log::warn!(
-                "ZED_COPY_REMOTE_SERVER path does not exist, falling back to ZED_BUILD_REMOTE_SERVER: {}",
+                "SOTID_COPY_REMOTE_SERVER path does not exist, falling back to bundled binary or SOTID_BUILD_REMOTE_SERVER: {}",
                 path.display()
             );
         }
     }
 
+    // Prefer a prebuilt binary shipped with this installation over building
+    // from source, which requires a Sotid checkout and is only available in
+    // dev builds.
+    if let Some(bundled) = find_bundled_remote_server(platform) {
+        log::info!(
+            "using bundled remote server binary {}",
+            bundled.display()
+        );
+        return Ok(Some(bundled));
+    }
+
     // By default, we make building remote server from source opt-out and we do not force artifact compression
     // for quicker builds.
     let build_remote_server =
-        std::env::var("ZED_BUILD_REMOTE_SERVER").unwrap_or("nocompress".into());
+        std::env::var("SOTID_BUILD_REMOTE_SERVER").unwrap_or("nocompress".into());
 
-    if let "never" = &*build_remote_server {
+    if let "never" | "false" | "no" | "off" | "0" = &*build_remote_server {
         return Ok(None);
-    } else if let "false" | "no" | "off" | "0" = &*build_remote_server {
-        if binary_exists_on_server {
-            return Ok(None);
-        }
-        log::warn!("ZED_BUILD_REMOTE_SERVER is disabled, but no server binary exists on the server")
     }
 
     async fn run_cmd(command: &mut Command) -> Result<()> {
@@ -323,7 +360,7 @@ async fn build_remote_server_from_source(
             new_command(rustup)
                 .current_dir(
                     util::dev_repo_root()
-                        .context("locating the zed checkout to add the rustup target")?,
+                        .context("locating the Sotid checkout to add the rustup target")?,
                 )
                 .args(["target", "add"])
                 .arg(&triple),
@@ -374,7 +411,7 @@ async fn build_remote_server_from_source(
     if platform.os == RemoteOs::Linux && use_musl {
         rust_flags.push_str(" -C target-feature=+crt-static");
 
-        if let Ok(path) = std::env::var("ZED_ZSTD_MUSL_LIB") {
+        if let Ok(path) = std::env::var("SOTID_ZSTD_MUSL_LIB") {
             rust_flags.push_str(&format!(" -C link-arg=-L{path}"));
         }
     }
@@ -442,7 +479,7 @@ async fn build_remote_server_from_source(
                 new_command("rustup")
                     .current_dir(
                         util::dev_repo_root()
-                            .context("locating the zed checkout to add the llvm-tools component")?,
+                            .context("locating the Sotid checkout to add the llvm-tools component")?,
                     )
                     .args(["component", "add", "llvm-tools"]),
             )
@@ -461,7 +498,7 @@ async fn build_remote_server_from_source(
         new_command("cargo")
             .current_dir(
                 util::dev_repo_root()
-                    .context("locating the zed checkout to build remote_server from source")?,
+                    .context("locating the Sotid checkout to build remote_server from source")?,
             )
             .args(remote_build_mode.build_command())
             .args([
@@ -479,7 +516,7 @@ async fn build_remote_server_from_source(
     .await?;
 
     let bin_path = util::dev_repo_root()
-        .context("locating the zed checkout that built remote_server from source")?
+        .context("locating the Sotid checkout that built remote_server from source")?
         .join("target")
         .join("remote_server")
         .join(&triple)
@@ -532,7 +569,6 @@ async fn build_remote_server_from_source(
     Ok(Some(path))
 }
 
-#[cfg(any(debug_assertions, feature = "build-remote-server-binary"))]
 async fn which(
     binary_name: impl AsRef<str>,
     cx: &mut AsyncApp,
@@ -599,6 +635,72 @@ mod tests {
 
         assert!(parse_platform("Windows x86_64\n").is_err());
         assert!(parse_platform("Linux armv7l\n").is_err());
+    }
+
+    #[test]
+    fn test_bundled_remote_server_name() {
+        assert_eq!(
+            bundled_remote_server_name(&RemotePlatform {
+                os: RemoteOs::Linux,
+                arch: RemoteArch::X86_64,
+            }),
+            Some("sotid-remote-server-linux-x86_64.gz")
+        );
+        assert_eq!(
+            bundled_remote_server_name(&RemotePlatform {
+                os: RemoteOs::Linux,
+                arch: RemoteArch::Aarch64,
+            }),
+            Some("sotid-remote-server-linux-aarch64.gz")
+        );
+        // No bundled binary ships for non-Linux targets.
+        assert_eq!(
+            bundled_remote_server_name(&RemotePlatform {
+                os: RemoteOs::MacOs,
+                arch: RemoteArch::Aarch64,
+            }),
+            None
+        );
+        assert_eq!(
+            bundled_remote_server_name(&RemotePlatform {
+                os: RemoteOs::Windows,
+                arch: RemoteArch::X86_64,
+            }),
+            None
+        );
+    }
+
+    #[test]
+    fn test_find_bundled_remote_server_in() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let platform = RemotePlatform {
+            os: RemoteOs::Linux,
+            arch: RemoteArch::X86_64,
+        };
+
+        // Absent by default.
+        assert_eq!(
+            find_bundled_remote_server_in(temp_dir.path(), &platform),
+            None
+        );
+
+        // Present once the file exists.
+        let expected = temp_dir.path().join("sotid-remote-server-linux-x86_64.gz");
+        std::fs::write(&expected, b"").unwrap();
+        assert_eq!(
+            find_bundled_remote_server_in(temp_dir.path(), &platform),
+            Some(expected)
+        );
+
+        // A different arch is not matched by the x86_64 file.
+        let aarch64 = RemotePlatform {
+            os: RemoteOs::Linux,
+            arch: RemoteArch::Aarch64,
+        };
+        assert_eq!(
+            find_bundled_remote_server_in(temp_dir.path(), &aarch64),
+            None
+        );
     }
 
     #[test]

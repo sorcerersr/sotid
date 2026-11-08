@@ -1,18 +1,18 @@
 [
   {
-    "label": "Debug Zed (CodeLLDB)",
+    "label": "Debug Sotid (CodeLLDB)",
     "adapter": "CodeLLDB",
     "build": {
-      "label": "Build Zed",
+      "label": "Build Sotid",
       "command": "cargo",
       "args": ["build"]
     }
   },
   {
-    "label": "Debug Zed (GDB)",
+    "label": "Debug Sotid (GDB)",
     "adapter": "GDB",
     "build": {
-      "label": "Build Zed",
+      "label": "Build Sotid",
       "command": "cargo",
       "args": ["build"]
     }

@@ -225,7 +225,7 @@ impl WslRemoteConnection {
         };
 
         let binary_name = format!(
-            "zed-remote-server-{}-{}",
+            "sotid-remote-server-{}-{}",
             release_channel.dev_name(),
             version_str
         );
@@ -246,51 +246,36 @@ impl WslRemoteConnection {
             .await
             .is_ok();
 
-        #[cfg(any(debug_assertions, feature = "build-remote-server-binary"))]
-        if let Some(remote_server_path) = super::build_remote_server_from_source(
-            &self.platform,
-            delegate.as_ref(),
-            binary_exists_on_server,
-            cx,
-        )
-        .await?
-        {
-            let tmp_path = paths::remote_server_dir_relative().join(
-                &RelPath::from_unix_str(&format!(
-                    "download-{}-{}",
-                    std::process::id(),
-                    remote_server_path.file_name().unwrap().to_string_lossy()
-                ))
-                .unwrap(),
-            );
-            self.upload_file(&remote_server_path, &tmp_path, delegate, cx)
-                .await?;
-            self.extract_and_install(&tmp_path, &dst_path, delegate, cx)
-                .await?;
-            return Ok(dst_path.into());
-        }
-
         if binary_exists_on_server {
             return Ok(dst_path.into());
         }
 
-        let wanted_version = match release_channel {
-            ReleaseChannel::Nightly | ReleaseChannel::Dev => None,
-            _ => Some(cx.update(|cx| AppVersion::global(cx))),
+        let Some(remote_server_path) = super::build_remote_server_from_source(
+            &self.platform,
+            delegate.as_ref(),
+            cx,
+        )
+        .await?
+        else {
+            anyhow::bail!(
+                "No remote server binary for {} is available: this installation ships no bundled \
+                 binary for that platform and SOTID_BUILD_REMOTE_SERVER is disabled. \n\
+                 Building from source requires a Sotid checkout; to use a prebuilt binary, set \
+                 SOTID_COPY_REMOTE_SERVER to its path.",
+                self.platform.os
+            );
         };
 
-        let src_path = delegate
-            .download_server_binary_locally(self.platform, release_channel, wanted_version, cx)
-            .await?;
-
-        let tmp_path = format!(
-            "{}.{}.gz",
-            dst_path.display(PathStyle::Unix),
-            std::process::id()
+        let tmp_path = paths::remote_server_dir_relative().join(
+            &RelPath::from_unix_str(&format!(
+                "build-{}-{}",
+                std::process::id(),
+                remote_server_path.file_name().unwrap().to_string_lossy()
+            ))
+            .unwrap(),
         );
-        let tmp_path = RelPath::from_unix_str(&tmp_path).unwrap();
-
-        self.upload_file(&src_path, &tmp_path, delegate, cx).await?;
+        self.upload_file(&remote_server_path, &tmp_path, delegate, cx)
+            .await?;
         self.extract_and_install(&tmp_path, &dst_path, delegate, cx)
             .await?;
 

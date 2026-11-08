@@ -1,5 +1,4 @@
 use gpui::{Action, Entity, OwnedMenu, OwnedMenuItem, Subscription, actions};
-use project::DisableAiSettings;
 use settings::{Settings, SettingsStore};
 use workspace::AccessibleMode;
 
@@ -55,20 +54,15 @@ impl ApplicationMenu {
         let menus = cx.get_menus().unwrap_or_default();
 
         let entries = Self::build_entries(menus);
-        let mut disable_ai = DisableAiSettings::get_global(cx).disable_ai;
         let settings_subscription =
             cx.observe_global::<SettingsStore>(move |application_menu, cx| {
-                let new_disable_ai = DisableAiSettings::get_global(cx).disable_ai;
-                if new_disable_ai != disable_ai {
-                    disable_ai = new_disable_ai;
-                    for entry in &application_menu.entries {
-                        if entry.handle.is_deployed() {
-                            entry.handle.hide(cx);
-                        }
+                for entry in &application_menu.entries {
+                    if entry.handle.is_deployed() {
+                        entry.handle.hide(cx);
                     }
-                    let menus = cx.get_menus().unwrap_or_default();
-                    application_menu.entries = Self::build_entries(menus);
                 }
+                let menus = cx.get_menus().unwrap_or_default();
+                application_menu.entries = Self::build_entries(menus);
                 cx.notify();
             });
 
@@ -376,8 +370,7 @@ impl Render for ApplicationMenu {
 #[cfg(test)]
 mod tests {
     use gpui::{Action, Menu, MenuItem, OwnedMenu, OwnedMenuItem, TestAppContext, UpdateGlobal};
-    use project::DisableAiSettings;
-    use settings::{Settings, SettingsStore};
+    use settings::SettingsStore;
 
     use crate::application_menu::{ApplicationMenu, MenuEntry, OpenApplicationMenu};
 
@@ -385,7 +378,6 @@ mod tests {
         cx.update(|cx| {
             let settings_store = SettingsStore::test(cx);
             cx.set_global(settings_store);
-            DisableAiSettings::register(cx);
             theme_settings::init(theme::LoadThemes::JustBase, cx);
         });
     }
@@ -420,11 +412,11 @@ mod tests {
             .expect("expected menu")
     }
 
-    fn view_menu(include_agent_panel: bool) -> Menu {
+    fn view_menu(include_example_panel: bool) -> Menu {
         let mut items = Vec::new();
-        if include_agent_panel {
+        if include_example_panel {
             items.push(MenuItem::action(
-                "Agent Panel",
+                "Example Panel",
                 OpenApplicationMenu(String::new()),
             ));
         }
@@ -442,13 +434,13 @@ mod tests {
 
     #[test]
     fn test_build_entries_reflects_current_menu_data() {
-        let with_agent_panel =
-            ApplicationMenu::build_entries(vec![owned_menu("View", "Agent Panel")]);
-        assert!(has_item(&with_agent_panel, "View", "Agent Panel"));
+        let with_example_panel =
+            ApplicationMenu::build_entries(vec![owned_menu("View", "Example Panel")]);
+        assert!(has_item(&with_example_panel, "View", "Example Panel"));
 
-        let without_agent_panel =
+        let without_example_panel =
             ApplicationMenu::build_entries(vec![owned_menu("View", "Diagnostics")]);
-        assert!(!has_item(&without_agent_panel, "View", "Agent Panel"));
+        assert!(!has_item(&without_example_panel, "View", "Example Panel"));
     }
 
     #[gpui::test]
@@ -472,7 +464,7 @@ mod tests {
         assert!(app_menu.read_with(cx, |app_menu, _| has_item(
             &app_menu.entries,
             "View",
-            "Agent Panel"
+            "Example Panel"
         )));
 
         assert!(app_menu.read_with(cx, |app_menu, _| has_item(
@@ -483,7 +475,6 @@ mod tests {
 
         cx.update(|_, cx| {
             cx.set_menus(vec![view_menu(false)]);
-            DisableAiSettings::override_global(DisableAiSettings { disable_ai: true }, cx);
         });
 
         assert!(!view_handle.is_deployed());
@@ -491,9 +482,9 @@ mod tests {
             !app_menu.read_with(cx, |app_menu, _| has_item(
                 &app_menu.entries,
                 "View",
-                "Agent Panel"
+                "Example Panel"
             )),
-            "expected Agent Panel is not in the View menu"
+            "expected Example Panel is not in the View menu"
         );
 
         assert!(app_menu.read_with(cx, |app_menu, _| has_item(
@@ -504,13 +495,12 @@ mod tests {
 
         cx.update(|_, cx| {
             cx.set_menus(vec![view_menu(true)]);
-            DisableAiSettings::override_global(DisableAiSettings { disable_ai: false }, cx);
         });
 
         assert!(app_menu.read_with(cx, |app_menu, _| has_item(
             &app_menu.entries,
             "View",
-            "Agent Panel"
+            "Example Panel"
         )));
         assert!(app_menu.read_with(cx, |app_menu, _| has_item(
             &app_menu.entries,

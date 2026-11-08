@@ -2,13 +2,11 @@ use std::path::PathBuf;
 
 use super::*;
 use crate::item::test::TestItem;
-use agent_settings::AgentSettings;
-use client::proto;
+use proto;
 use fs::{FakeFs, Fs};
 use gpui::{TestAppContext, VisualTestContext};
-use project::DisableAiSettings;
 use serde_json::json;
-use settings::{Settings, SettingsStore};
+use settings::SettingsStore;
 use util::path;
 
 fn init_test(cx: &mut TestAppContext) {
@@ -16,7 +14,6 @@ fn init_test(cx: &mut TestAppContext) {
         let settings_store = SettingsStore::test(cx);
         cx.set_global(settings_store);
         theme_settings::init(theme::LoadThemes::JustBase, cx);
-        DisableAiSettings::register(cx);
     });
 }
 
@@ -39,120 +36,13 @@ fn setup_multi_workspace<'a>(
         })
     }
 
-    // Opening the sidebar retains the workspaces and establishes their project groups.
-    multi_workspace.update(cx, |multi_workspace, cx| multi_workspace.open_sidebar(cx));
+    // Retain the workspaces to establish their project groups.
+    multi_workspace.update(cx, |multi_workspace, cx| multi_workspace.retain_active_workspace(cx));
     cx.run_until_parked();
 
     (multi_workspace, cx)
 }
 
-#[gpui::test]
-async fn test_sidebar_disabled_when_disable_ai_is_enabled(cx: &mut TestAppContext) {
-    init_test(cx);
-    let fs = FakeFs::new(cx.executor());
-    let project = Project::test(fs, [], cx).await;
-
-    let (multi_workspace, cx) =
-        cx.add_window_view(|window, cx| MultiWorkspace::test_new(project, window, cx));
-
-    multi_workspace.read_with(cx, |mw, cx| {
-        assert!(mw.multi_workspace_enabled(cx));
-    });
-
-    multi_workspace.update_in(cx, |mw, _window, cx| {
-        mw.open_sidebar(cx);
-        assert!(mw.sidebar_open());
-    });
-
-    cx.update(|_window, cx| {
-        DisableAiSettings::override_global(DisableAiSettings { disable_ai: true }, cx);
-    });
-    cx.run_until_parked();
-
-    multi_workspace.read_with(cx, |mw, cx| {
-        assert!(
-            !mw.sidebar_open(),
-            "Sidebar should be closed when disable_ai is true"
-        );
-        assert!(
-            !mw.multi_workspace_enabled(cx),
-            "Multi-workspace should be disabled when disable_ai is true"
-        );
-    });
-
-    multi_workspace.update_in(cx, |mw, window, cx| {
-        mw.toggle_sidebar(window, cx);
-    });
-    multi_workspace.read_with(cx, |mw, _cx| {
-        assert!(
-            !mw.sidebar_open(),
-            "Sidebar should remain closed when toggled with disable_ai true"
-        );
-    });
-
-    cx.update(|_window, cx| {
-        DisableAiSettings::override_global(DisableAiSettings { disable_ai: false }, cx);
-    });
-    cx.run_until_parked();
-
-    multi_workspace.read_with(cx, |mw, cx| {
-        assert!(
-            mw.multi_workspace_enabled(cx),
-            "Multi-workspace should be enabled after re-enabling AI"
-        );
-        assert!(
-            !mw.sidebar_open(),
-            "Sidebar should still be closed after re-enabling AI (not auto-opened)"
-        );
-    });
-
-    multi_workspace.update_in(cx, |mw, window, cx| {
-        mw.toggle_sidebar(window, cx);
-    });
-    multi_workspace.read_with(cx, |mw, _cx| {
-        assert!(
-            mw.sidebar_open(),
-            "Sidebar should open when toggled after re-enabling AI"
-        );
-    });
-}
-
-#[gpui::test]
-async fn test_multi_workspace_collapses_when_agent_is_disabled(cx: &mut TestAppContext) {
-    init_test(cx);
-    let fs = FakeFs::new(cx.executor());
-    fs.insert_tree("/root_a", json!({ "file.txt": "" })).await;
-    fs.insert_tree("/root_b", json!({ "file.txt": "" })).await;
-    let project_a = Project::test(fs.clone(), ["/root_a".as_ref()], cx).await;
-    let project_b = Project::test(fs, ["/root_b".as_ref()], cx).await;
-
-    let (multi_workspace, cx) =
-        cx.add_window_view(|window, cx| MultiWorkspace::test_new(project_a, window, cx));
-
-    multi_workspace.update_in(cx, |multi_workspace, window, cx| {
-        multi_workspace.test_add_workspace(project_b, window, cx);
-    });
-    cx.run_until_parked();
-
-    multi_workspace.read_with(cx, |multi_workspace, cx| {
-        assert!(multi_workspace.multi_workspace_enabled(cx));
-        assert_eq!(multi_workspace.workspaces().count(), 2);
-    });
-
-    cx.update(|_window, cx| {
-        let mut settings = AgentSettings::get_global(cx).clone();
-        settings.enabled = false;
-        AgentSettings::override_global(settings, cx);
-    });
-    cx.run_until_parked();
-
-    multi_workspace.read_with(cx, |multi_workspace, cx| {
-        assert!(!multi_workspace.multi_workspace_enabled(cx));
-        assert!(!multi_workspace.sidebar_open());
-        assert_eq!(multi_workspace.workspaces().count(), 1);
-        assert!(multi_workspace.project_group_keys().is_empty());
-    });
-}
 
 #[gpui::test]
 async fn test_project_group_keys_initial(cx: &mut TestAppContext) {
@@ -167,7 +57,7 @@ async fn test_project_group_keys_initial(cx: &mut TestAppContext) {
         cx.add_window_view(|window, cx| MultiWorkspace::test_new(project, window, cx));
 
     multi_workspace.update(cx, |mw, cx| {
-        mw.open_sidebar(cx);
+        mw.retain_active_workspace(cx);
     });
 
     multi_workspace.read_with(cx, |mw, _cx| {
@@ -197,7 +87,7 @@ async fn test_project_group_keys_add_workspace(cx: &mut TestAppContext) {
         cx.add_window_view(|window, cx| MultiWorkspace::test_new(project_a, window, cx));
 
     multi_workspace.update(cx, |mw, cx| {
-        mw.open_sidebar(cx);
+        mw.retain_active_workspace(cx);
     });
 
     multi_workspace.read_with(cx, |mw, _cx| {
@@ -284,13 +174,7 @@ async fn test_open_new_window_does_not_open_sidebar_on_existing_window(cx: &mut 
 
     let project = Project::test(app_state.fs.clone(), [path!("/project_a").as_ref()], cx).await;
 
-    let window = cx.add_window(|window, cx| MultiWorkspace::test_new(project, window, cx));
-
-    window
-        .read_with(cx, |mw, _cx| {
-            assert!(!mw.sidebar_open(), "sidebar should start closed",);
-        })
-        .unwrap();
+    cx.add_window(|window, cx| MultiWorkspace::test_new(project, window, cx));
 
     cx.update(|cx| {
         open_paths(
@@ -305,103 +189,8 @@ async fn test_open_new_window_does_not_open_sidebar_on_existing_window(cx: &mut 
     })
     .await
     .unwrap();
-
-    window
-        .read_with(cx, |mw, _cx| {
-            assert!(
-                !mw.sidebar_open(),
-                "opening a project in a new window must not open the sidebar on the original window",
-            );
-        })
-        .unwrap();
 }
 
-#[gpui::test]
-async fn test_open_directory_in_existing_window_opens_sidebar(cx: &mut TestAppContext) {
-    init_test(cx);
-
-    let app_state = cx.update(AppState::test);
-    let fs = app_state.fs.as_fake();
-    fs.insert_tree(path!("/project_a"), json!({ "file.txt": "" }))
-        .await;
-    fs.insert_tree(path!("/project_b"), json!({ "file.txt": "" }))
-        .await;
-
-    let project = Project::test(app_state.fs.clone(), [path!("/project_a").as_ref()], cx).await;
-    let window = cx.add_window(|window, cx| MultiWorkspace::test_new(project, window, cx));
-    cx.run_until_parked();
-
-    cx.update(|cx| {
-        open_paths(
-            &[PathBuf::from(path!("/project_b"))],
-            app_state,
-            OpenOptions::default(),
-            cx,
-        )
-    })
-    .await
-    .unwrap();
-
-    window
-        .read_with(cx, |mw, _cx| {
-            assert!(
-                mw.sidebar_open(),
-                "adding a directory to an existing window opens the sidebar by default",
-            );
-            assert_eq!(mw.workspaces().count(), 2);
-        })
-        .unwrap();
-}
-
-#[gpui::test]
-async fn test_open_directory_in_existing_window_respects_auto_open_setting(
-    cx: &mut TestAppContext,
-) {
-    init_test(cx);
-
-    let app_state = cx.update(AppState::test);
-    let fs = app_state.fs.as_fake();
-    fs.insert_tree(path!("/project_a"), json!({ "file.txt": "" }))
-        .await;
-    fs.insert_tree(path!("/project_b"), json!({ "file.txt": "" }))
-        .await;
-
-    cx.update(|cx| {
-        let mut settings = AgentSettings::get_global(cx).clone();
-        settings.threads_sidebar.auto_open = false;
-        AgentSettings::override_global(settings, cx);
-    });
-
-    let project = Project::test(app_state.fs.clone(), [path!("/project_a").as_ref()], cx).await;
-    let window = cx.add_window(|window, cx| MultiWorkspace::test_new(project, window, cx));
-    cx.run_until_parked();
-
-    cx.update(|cx| {
-        open_paths(
-            &[PathBuf::from(path!("/project_b"))],
-            app_state,
-            OpenOptions::default(),
-            cx,
-        )
-    })
-    .await
-    .unwrap();
-
-    window
-        .read_with(cx, |mw, _cx| {
-            assert!(
-                !mw.sidebar_open(),
-                "the sidebar must stay closed when `threads_sidebar.auto_open` is disabled",
-            );
-            assert_eq!(
-                mw.workspaces().count(),
-                2,
-                "the directory is still added to the existing window, and the workspace it \
-                 replaces is retained",
-            );
-        })
-        .unwrap();
-}
 
 #[gpui::test]
 async fn test_open_directory_in_empty_workspace_does_not_open_sidebar(cx: &mut TestAppContext) {
@@ -426,12 +215,6 @@ async fn test_open_directory_in_empty_workspace_does_not_open_sidebar(cx: &mut T
         mw
     });
 
-    window
-        .read_with(cx, |mw, _cx| {
-            assert!(!mw.sidebar_open(), "sidebar should start closed");
-        })
-        .unwrap();
-
     // Simulate what open_workspace_for_paths does for an empty workspace:
     // it downgrades OpenMode::NewWindow to Activate and sets requesting_window.
     cx.update(|cx| {
@@ -448,15 +231,6 @@ async fn test_open_directory_in_empty_workspace_does_not_open_sidebar(cx: &mut T
     })
     .await
     .unwrap();
-
-    window
-        .read_with(cx, |mw, _cx| {
-            assert!(
-                !mw.sidebar_open(),
-                "opening a directory in a blank project via the file picker must not open the sidebar",
-            );
-        })
-        .unwrap();
 }
 
 #[gpui::test]
@@ -487,13 +261,12 @@ async fn test_local_files_reuse_local_workspace_when_non_local_workspace_is_acti
     });
 
     let remote_project = Project::test(FakeFs::new(cx.executor()), [], cx).await;
-    remote_project.update(cx, |project, _| project.mark_as_collab_for_testing());
     let local_project = Project::test(app_state.fs.clone(), [path!("/local").as_ref()], cx).await;
     let window =
         cx.add_window(|window, cx| MultiWorkspace::test_new(remote_project.clone(), window, cx));
     let (remote_workspace, local_workspace) = window
         .update(cx, |multi_workspace, window, cx| {
-            multi_workspace.open_sidebar(cx);
+            multi_workspace.retain_active_workspace(cx);
             let remote_workspace = multi_workspace.workspace().clone();
             let local_workspace = multi_workspace.test_add_workspace(local_project, window, cx);
             (remote_workspace, local_workspace)
@@ -538,41 +311,6 @@ async fn test_local_files_reuse_local_workspace_when_non_local_workspace_is_acti
 }
 
 #[gpui::test]
-async fn test_local_workspace_lookup_skips_collab_with_same_paths(cx: &mut TestAppContext) {
-    init_test(cx);
-
-    let fs = FakeFs::new(cx.executor());
-    fs.insert_tree(path!("/project"), json!({})).await;
-
-    let collab_project = Project::test(fs.clone(), [path!("/project").as_ref()], cx).await;
-    collab_project.update(cx, |project, _| project.mark_as_collab_for_testing());
-
-    let local_project = Project::test(fs, [path!("/project").as_ref()], cx).await;
-    let (multi_workspace, cx) = setup_multi_workspace(&[collab_project, local_project], cx);
-
-    let paths = PathList::new(&[PathBuf::from(path!("/project"))]);
-
-    let local_workspace =
-        multi_workspace.read_with(cx, |multi_workspace, _| multi_workspace.workspace().clone());
-    let workspace = multi_workspace
-        .update_in(cx, |multi_workspace, window, cx| {
-            multi_workspace.find_or_create_local_workspace(
-                paths,
-                None,
-                None,
-                OpenMode::Activate,
-                None,
-                window,
-                cx,
-            )
-        })
-        .await
-        .unwrap();
-
-    assert_eq!(workspace, local_workspace);
-}
-
-#[gpui::test]
 async fn test_project_group_keys_duplicate_not_added(cx: &mut TestAppContext) {
     init_test(cx);
     let fs = FakeFs::new(cx.executor());
@@ -589,7 +327,7 @@ async fn test_project_group_keys_duplicate_not_added(cx: &mut TestAppContext) {
         cx.add_window_view(|window, cx| MultiWorkspace::test_new(project_a, window, cx));
 
     multi_workspace.update(cx, |mw, cx| {
-        mw.open_sidebar(cx);
+        mw.retain_active_workspace(cx);
     });
 
     multi_workspace.update_in(cx, |mw, window, cx| {
@@ -619,9 +357,9 @@ async fn test_adding_worktree_updates_project_group_key(cx: &mut TestAppContext)
     let (multi_workspace, cx) =
         cx.add_window_view(|window, cx| MultiWorkspace::test_new(project.clone(), window, cx));
 
-    // Open sidebar to retain the workspace and create the initial group.
+    // Retain the workspace to create the initial group.
     multi_workspace.update(cx, |mw, cx| {
-        mw.open_sidebar(cx);
+        mw.retain_active_workspace(cx);
     });
     cx.run_until_parked();
 
@@ -889,7 +627,7 @@ async fn test_find_or_create_local_workspace_reuses_active_workspace_after_sideb
         cx.add_window_view(|window, cx| MultiWorkspace::test_new(project, window, cx));
 
     multi_workspace.update(cx, |mw, cx| {
-        mw.open_sidebar(cx);
+        mw.retain_active_workspace(cx);
     });
     cx.run_until_parked();
 
@@ -952,7 +690,7 @@ async fn test_close_workspace_prefers_already_loaded_neighboring_workspace(
         cx.add_window_view(|window, cx| MultiWorkspace::test_new(project_a, window, cx));
 
     multi_workspace.update(cx, |multi_workspace, cx| {
-        multi_workspace.open_sidebar(cx);
+        multi_workspace.retain_active_workspace(cx);
     });
     cx.run_until_parked();
 
@@ -1357,7 +1095,7 @@ async fn test_remote_project_root_dir_changes_update_groups(cx: &mut TestAppCont
         cx.add_window_view(|window, cx| MultiWorkspace::test_new(project_a, window, cx));
 
     multi_workspace.update(cx, |mw, cx| {
-        mw.open_sidebar(cx);
+        mw.retain_active_workspace(cx);
     });
     cx.run_until_parked();
 
@@ -1464,7 +1202,7 @@ async fn test_open_project_closes_empty_workspace_but_not_non_empty_ones(cx: &mu
     cx.run_until_parked();
 
     window
-        .update(cx, |mw, _window, cx| mw.open_sidebar(cx))
+        .update(cx, |mw, _window, cx| mw.retain_active_workspace(cx))
         .unwrap();
     cx.run_until_parked();
 
@@ -1599,7 +1337,7 @@ async fn test_close_workspace_with_remote_neighbor_does_not_create_local_workspa
         cx.add_window_view(|window, cx| MultiWorkspace::test_new(project_a, window, cx));
 
     multi_workspace.update(cx, |mw, cx| {
-        mw.open_sidebar(cx);
+        mw.retain_active_workspace(cx);
     });
     cx.run_until_parked();
 
@@ -1668,7 +1406,7 @@ async fn test_remove_project_group_with_remote_neighbor_does_not_create_local_wo
         cx.add_window_view(|window, cx| MultiWorkspace::test_new(project_a.clone(), window, cx));
 
     multi_workspace.update(cx, |mw, cx| {
-        mw.open_sidebar(cx);
+        mw.retain_active_workspace(cx);
     });
     cx.run_until_parked();
 
@@ -1846,39 +1584,6 @@ async fn test_nearest_retained_workspace(cx: &mut TestAppContext) {
             ),
             None,
             "no workspace should be returned when every candidate is excluded"
-        );
-    });
-}
-
-#[gpui::test]
-async fn test_nearest_retained_workspace_skips_disconnected_workspace(cx: &mut TestAppContext) {
-    init_test(cx);
-    let fs = FakeFs::new(cx.executor());
-    fs.insert_tree("/project-a", json!({})).await;
-    fs.insert_tree("/project-b", json!({})).await;
-
-    let project_a = Project::test(fs.clone(), ["/project-a".as_ref()], cx).await;
-    let project_b = Project::test(fs, ["/project-b".as_ref()], cx).await;
-    let key_a = project_a.read_with(cx, |project, cx| project.project_group_key(cx));
-    let (multi_workspace, cx) = setup_multi_workspace(&[project_a.clone(), project_b.clone()], cx);
-
-    project_b.update(cx, |project, cx| {
-        project.mark_as_collab_for_testing();
-        project.disconnected_from_host(cx);
-    });
-    cx.run_until_parked();
-
-    multi_workspace.update(cx, |multi_workspace, cx| {
-        let group_a_index = multi_workspace
-            .project_groups(cx)
-            .iter()
-            .position(|group| group.key == key_a)
-            .expect("project group A should exist");
-
-        assert_eq!(
-            multi_workspace.nearest_retained_workspace(group_a_index, &[], cx),
-            None,
-            "a disconnected workspace should not be selected as a fallback"
         );
     });
 }

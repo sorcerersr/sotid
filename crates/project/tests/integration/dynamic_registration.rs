@@ -4004,10 +4004,6 @@ impl rpc::ProtoClient for RecordingProtoClient {
         &self.handler_set
     }
 
-    fn is_via_collab(&self) -> bool {
-        false
-    }
-
     fn has_wsl_interop(&self) -> bool {
         false
     }

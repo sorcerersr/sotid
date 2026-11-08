@@ -9,9 +9,7 @@ use std::{
 };
 use tasks_ui::{TaskOverrides, TasksModal};
 
-use dap::{
-    DapRegistry, DebugRequest, TelemetrySpawnLocation, adapters::DebugAdapterName, send_telemetry,
-};
+use dap::{DapRegistry, DebugRequest, adapters::DebugAdapterName};
 use editor::Editor;
 use fuzzy::{StringMatch, StringMatchCandidate};
 use gpui::{
@@ -21,7 +19,7 @@ use gpui::{
 use itertools::Itertools as _;
 use picker::{Picker, PickerDelegate, highlighted_match_with_paths::HighlightedMatch};
 use project::{DebugScenarioContext, Project, TaskContexts, TaskSourceKind, task_store::TaskStore};
-use task::{DebugScenario, RevealTarget, SharedTaskContext, VariableName, ZedDebugConfig};
+use task::{DebugScenario, RevealTarget, SharedTaskContext, VariableName, SotidDebugConfig};
 use ui::{
     ContextMenu, DropdownMenu, IconWithIndicator, Indicator, KeyBinding, ListItem, ListItemSpacing,
     Switch, SwitchLabelPosition, ToggleButtonGroup, ToggleButtonSimple, ToggleState, Tooltip,
@@ -330,7 +328,7 @@ impl NewProcessModal {
             None
         };
 
-        let session_scenario = ZedDebugConfig {
+        let session_scenario = SotidDebugConfig {
             adapter: debugger.to_owned().into(),
             label,
             request,
@@ -341,7 +339,7 @@ impl NewProcessModal {
             .global::<DapRegistry>()
             .adapter(&session_scenario.adapter);
 
-        cx.spawn(async move |_| adapter?.config_from_zed_format(session_scenario).await.ok())
+        cx.spawn(async move |_| adapter?.config_from_sotid_format(session_scenario).await.ok())
     }
 
     fn start_new_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -387,7 +385,6 @@ impl NewProcessModal {
             };
 
             debug_panel.update_in(cx, |debug_panel, window, cx| {
-                send_telemetry(&config, TelemetrySpawnLocation::Custom, cx);
                 debug_panel.start_session(config, task_context, None, worktree_id, window, cx)
             })?;
             this.update(cx, |_, cx| {
@@ -828,7 +825,7 @@ pub(super) struct ConfigureMode {
 impl ConfigureMode {
     pub(super) fn new(window: &mut Window, cx: &mut App) -> Entity<Self> {
         let program = cx.new(|cx| {
-            InputField::new(window, cx, "ENV=Zed ~/bin/program --option")
+            InputField::new(window, cx, "ENV=Sotid ~/bin/program --option")
                 .label("Program")
                 .tab_stop(true)
                 .tab_index(1)
@@ -959,7 +956,7 @@ impl ConfigureMode {
 
 #[derive(Clone)]
 pub(super) struct AttachMode {
-    pub(super) definition: ZedDebugConfig,
+    pub(super) definition: SotidDebugConfig,
     pub(super) attach_picker: Entity<AttachModal>,
 }
 
@@ -971,7 +968,7 @@ impl AttachMode {
         window: &mut Window,
         cx: &mut Context<NewProcessModal>,
     ) -> Entity<Self> {
-        let definition = ZedDebugConfig {
+        let definition = SotidDebugConfig {
             adapter: debugger.unwrap_or(DebugAdapterName("".into())).0,
             label: "Attach New Session Setup".into(),
             request: dap::DebugRequest::Attach(task::AttachRequest { process_id: None }),
@@ -1385,7 +1382,6 @@ impl PickerDelegate for DebugDelegate {
             };
 
             this.update_in(cx, |this, window, cx| {
-                send_telemetry(&debug_scenario, TelemetrySpawnLocation::ScenarioList, cx);
                 this.delegate
                     .debug_panel
                     .update(cx, |panel, cx| {
@@ -1453,7 +1449,6 @@ impl PickerDelegate for DebugDelegate {
             })
             .detach();
         } else {
-            send_telemetry(&debug_scenario, TelemetrySpawnLocation::ScenarioList, cx);
             self.debug_panel
                 .update(cx, |panel, cx| {
                     panel.start_session(
@@ -1493,7 +1488,7 @@ impl PickerDelegate for DebugDelegate {
                     Button::new("edit-debug-json", "Edit debug.json").on_click(cx.listener(
                         |_picker, _, window, cx| {
                             window.dispatch_action(
-                                zed_actions::OpenProjectDebugTasks.boxed_clone(),
+                                sotid_actions::OpenProjectDebugTasks.boxed_clone(),
                                 cx,
                             );
                             cx.emit(DismissEvent);

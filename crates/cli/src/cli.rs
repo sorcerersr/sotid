@@ -27,7 +27,7 @@ pub enum OpenBehavior {
     /// Match broadly including subdirectories, and fall back to any existing
     /// window if no worktree matched. Corresponds to `zed -a`.
     Add,
-    /// Open directories as a new workspace in the current Zed window's sidebar.
+    /// Open directories as a new workspace in the current Sotid window's sidebar.
     /// Reuse existing windows for files in open worktrees.
     /// Corresponds to `zed -e`.
     ExistingWindow,
@@ -46,7 +46,7 @@ pub enum OpenBehavior {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CliBehaviorSetting {
-    /// Open directories as a new workspace in the current Zed window's sidebar.
+    /// Open directories as a new workspace in the current Sotid window's sidebar.
     ExistingWindow,
     /// Open paths in a new window unless they are subpaths of an existing project.
     NewWindow,
@@ -83,7 +83,7 @@ pub enum CliResponse {
     PromptOpenBehavior,
 }
 
-/// When Zed started not as an *.app but as a binary (e.g. local development),
+/// When Sotid started not as an *.app but as a binary (e.g. local development),
 /// there's a possibility to tell it to behave "regularly".
 ///
 /// Note that in the main zed binary, this variable is unset after it's read for the first time,

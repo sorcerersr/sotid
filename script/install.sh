@@ -1,22 +1,11 @@
 #!/usr/bin/env sh
 set -eu
 
-# Downloads a tarball from https://zed.dev/releases and unpacks it
-# into ~/.local/. If you'd prefer to do this manually, instructions are at
-# https://zed.dev/docs/linux.
+# Builds Sotid from the current working copy and installs it into ~/.local.
+# Run this from the root of a Sotid checkout.
 
 main() {
     platform="$(uname -s)"
-    arch="$(uname -m)"
-    channel="${ZED_CHANNEL:-stable}"
-    ZED_VERSION="${ZED_VERSION:-latest}"
-    # Use TMPDIR if available (for environments with non-standard temp directories)
-    if [ -n "${TMPDIR:-}" ] && [ -d "${TMPDIR}" ]; then
-        temp="$(mktemp -d "$TMPDIR/zed-XXXXXX")"
-    else
-        temp="$(mktemp -d "/tmp/zed-XXXXXX")"
-    fi
-
     if [ "$platform" = "Darwin" ]; then
         platform="macos"
     elif [ "$platform" = "Linux" ]; then
@@ -26,38 +15,16 @@ main() {
         exit 1
     fi
 
-    case "$platform-$arch" in
-        macos-arm64* | linux-arm64* | linux-aarch64)
-            arch="aarch64"
-            ;;
-        macos-x86* | linux-x86*)
-            arch="x86_64"
-            ;;
-        *)
-            echo "Unsupported platform or architecture"
-            exit 1
-            ;;
-    esac
+    # Build from the working copy in release mode.
+    echo "Building Sotid from source (this may take a while)..."
+    cargo build --release --package sotid --package cli
 
-    if command -v curl >/dev/null 2>&1; then
-        curl () {
-            command curl -fL "$@"
-        }
-    elif command -v wget >/dev/null 2>&1; then
-        curl () {
-            wget -O- "$@"
-        }
+    "$platform"
+
+    if [ "$(command -v sotid)" = "$HOME/.local/bin/sotid" ]; then
+        echo "Sotid has been installed. Run with 'sotid'"
     else
-        echo "Could not find 'curl' or 'wget' in your path"
-        exit 1
-    fi
-
-    "$platform" "$@"
-
-    if [ "$(command -v zed)" = "$HOME/.local/bin/zed" ]; then
-        echo "Zed has been installed. Run with 'zed'"
-    else
-        echo "To run Zed from your terminal, you must add ~/.local/bin to your PATH"
+        echo "To run Sotid from your terminal, you must add ~/.local/bin to your PATH"
         echo "Run:"
 
         case "$SHELL" in
@@ -74,98 +41,54 @@ main() {
                 ;;
         esac
 
-        echo "To run Zed now, '~/.local/bin/zed'"
+        echo "To run Sotid now, '~/.local/bin/sotid'"
     fi
 }
 
 linux() {
-    if [ -n "${ZED_BUNDLE_PATH:-}" ]; then
-        cp "$ZED_BUNDLE_PATH" "$temp/zed-linux-$arch.tar.gz"
-    else
-        echo "Downloading Zed version: $ZED_VERSION"
-        curl "https://cloud.zed.dev/releases/$channel/$ZED_VERSION/download?asset=zed&arch=$arch&os=linux&source=install.sh" > "$temp/zed-linux-$arch.tar.gz"
-    fi
+    target_dir="target/release"
 
-    suffix=""
-    if [ "$channel" != "stable" ]; then
-        suffix="-$channel"
-    fi
+    app_dir="$HOME/.local/sotid.app"
+    rm -rf "$app_dir"
+    mkdir -p "$app_dir/bin" "$app_dir/libexec" "$app_dir/share/applications" \
+        "$app_dir/share/icons/hicolor/512x512/apps" "$app_dir/share/icons/hicolor/1024x1024/apps"
 
-    appid=""
-    case "$channel" in
-      stable)
-        appid="dev.zed.Zed"
-        ;;
-      nightly)
-        appid="dev.zed.Zed-Nightly"
-        ;;
-      preview)
-        appid="dev.zed.Zed-Preview"
-        ;;
-      dev)
-        appid="dev.zed.Zed-Dev"
-        ;;
-      *)
-        echo "Unknown release channel: ${channel}. Using stable app ID."
-        appid="dev.zed.Zed"
-        ;;
-    esac
+    # Assemble the app directory.
+    cp "$target_dir/sotid" "$app_dir/libexec/sotid-editor"
+    cp "$target_dir/cli" "$app_dir/bin/sotid"
 
-    # Unpack
-    rm -rf "$HOME/.local/zed$suffix.app"
-    mkdir -p "$HOME/.local/zed$suffix.app"
-    tar -xzf "$temp/zed-linux-$arch.tar.gz" -C "$HOME/.local/"
+    # Icons
+    cp "crates/sotid/resources/app-icon.png" "$app_dir/share/icons/hicolor/512x512/apps/sotid.png"
+    cp "crates/sotid/resources/app-icon@2x.png" "$app_dir/share/icons/hicolor/1024x1024/apps/sotid.png"
 
-    zed_editor="$HOME/.local/zed$suffix.app/libexec/zed-editor"
-    if [ -f "$zed_editor" ] && command -v ldd >/dev/null 2>&1; then
-        missing="$(ldd "$zed_editor" 2>/dev/null | sed -n 's/^[[:space:]]*\(.*\) => not found$/\1/p')"
-        if [ -n "$missing" ]; then
-            echo "Warning: your system is missing libraries that Zed needs:"
-            echo "$missing" | sed 's/^/    /'
-            echo "Install them with your package manager, or Zed will fail to start."
-        fi
-    fi
+    # .desktop file
+    export DO_STARTUP_NOTIFY="true"
+    export APP_CLI="sotid"
+    export APP_ICON="sotid"
+    export APP_ARGS="%U"
+    export APP_NAME="Sotid"
+    mkdir -p "$HOME/.local/share/applications"
+    envsubst < "crates/sotid/resources/sotid.desktop.in" > "$app_dir/share/applications/de.sorcarion.Sotid.desktop"
+    chmod +x "$app_dir/share/applications/de.sorcarion.Sotid.desktop"
 
     # Setup ~/.local directories
-    mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications"
+    mkdir -p "$HOME/.local/bin"
 
     # Link the binary
-    if [ -f "$HOME/.local/zed$suffix.app/bin/zed" ]; then
-        ln -sf "$HOME/.local/zed$suffix.app/bin/zed" "$HOME/.local/bin/zed"
-    else
-        # support for versions before 0.139.x.
-        ln -sf "$HOME/.local/zed$suffix.app/bin/cli" "$HOME/.local/bin/zed"
-    fi
+    ln -sf "$app_dir/bin/sotid" "$HOME/.local/bin/sotid"
 
-    # Copy .desktop file
-    desktop_file_path="$HOME/.local/share/applications/${appid}.desktop"
-    src_dir="$HOME/.local/zed$suffix.app/share/applications"
-    if [ -f "$src_dir/${appid}.desktop" ]; then
-        cp "$src_dir/${appid}.desktop" "${desktop_file_path}"
-    else
-        # Fallback for older tarballs
-        cp "$src_dir/zed$suffix.desktop" "${desktop_file_path}"
-    fi
-    sed -i "s|Icon=zed|Icon=$HOME/.local/zed$suffix.app/share/icons/hicolor/512x512/apps/zed.png|g" "${desktop_file_path}"
-    sed -i "s|Exec=zed|Exec=$HOME/.local/zed$suffix.app/bin/zed|g" "${desktop_file_path}"
+    # Copy the .desktop file into the user applications dir
+    cp "$app_dir/share/applications/de.sorcarion.Sotid.desktop" "$HOME/.local/share/applications/de.sorcarion.Sotid.desktop"
+    sed -i "s|Icon=sotid|Icon=$app_dir/share/icons/hicolor/512x512/apps/sotid.png|g" "$HOME/.local/share/applications/de.sorcarion.Sotid.desktop"
+    sed -i "s|Exec=sotid|Exec=$app_dir/bin/sotid|g" "$HOME/.local/share/applications/de.sorcarion.Sotid.desktop"
 }
 
 macos() {
-    echo "Downloading Zed version: $ZED_VERSION"
-    curl "https://cloud.zed.dev/releases/$channel/$ZED_VERSION/download?asset=zed&os=macos&arch=$arch&source=install.sh" > "$temp/Zed-$arch.dmg"
-    hdiutil attach -quiet "$temp/Zed-$arch.dmg" -mountpoint "$temp/mount"
-    app="$(cd "$temp/mount/"; echo *.app)"
-    echo "Installing $app"
-    if [ -d "/Applications/$app" ]; then
-        echo "Removing existing $app"
-        rm -rf "/Applications/$app"
-    fi
-    ditto "$temp/mount/$app" "/Applications/$app"
-    hdiutil detach -quiet "$temp/mount"
+    # On macOS we just expose the CLI binary; no .app bundle is installed.
+    target_dir="target/release"
 
     mkdir -p "$HOME/.local/bin"
-    # Link the binary
-    ln -sf "/Applications/$app/Contents/MacOS/cli" "$HOME/.local/bin/zed"
+    ln -sf "$PWD/$target_dir/cli" "$HOME/.local/bin/sotid"
 }
 
 main "$@"

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 set -euxo pipefail
-source script/lib/blob-store.sh
 
 # Function for displaying help info
 help_info() {
@@ -11,14 +10,9 @@ Build a release .tar.gz for Linux.
 
 Options:
   -h, --help        Display this help and exit.
-  --flatpak         Set ZED_BUNDLE_TYPE=flatpak so that this can be included in system info
-  --require-sentry  Require Sentry credentials, CLI, and successful symbol upload (official releases).
-  --skip-sentry     Skip symbol upload for local packaging; incompatible with --require-sentry.
+  --flatpak         Set SOTID_BUNDLE_TYPE=flatpak so that this can be included in system info
   "
 }
-
-require_sentry=false
-skip_sentry=false
 
 # Parse all arguments manually
 while [[ $# -gt 0 ]]; do
@@ -28,15 +22,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         --flatpak)
-            export ZED_BUNDLE_TYPE=flatpak
-            shift
-            ;;
-        --require-sentry)
-            require_sentry=true
-            shift
-            ;;
-        --skip-sentry)
-            skip_sentry=true
+            export SOTID_BUNDLE_TYPE=flatpak
             shift
             ;;
         --)
@@ -61,36 +47,12 @@ if [[ -n "${RUSTFLAGS+x}" || -n "${CARGO_ENCODED_RUSTFLAGS+x}" ]]; then
     exit 1
 fi
 
-if "$require_sentry" && "$skip_sentry"; then
-    echo "--require-sentry and --skip-sentry cannot be used together." >&2
-    exit 1
-fi
+export SOTID_BUNDLE=true
 
-if "$skip_sentry"; then
-    echo "Skipping Sentry upload for local packaging."
-elif ! command -v sentry-cli >/dev/null 2>&1; then
-    if "$require_sentry"; then
-        echo "Official Linux releases require sentry-cli for symbol upload." >&2
-        exit 1
-    fi
-    echo "sentry-cli not found. skipping sentry upload."
-    echo "install with: 'curl -sL https://sentry.io/get-cli | bash'"
-    skip_sentry=true
-elif [[ -z "${SENTRY_AUTH_TOKEN:+set}" ]]; then
-    if "$require_sentry"; then
-        echo "Official Linux releases require SENTRY_AUTH_TOKEN for symbol upload." >&2
-        exit 1
-    fi
-    echo "missing SENTRY_AUTH_TOKEN. skipping sentry upload."
-    skip_sentry=true
-fi
-
-export ZED_BUNDLE=true
-
-channel=$(<crates/zed/RELEASE_CHANNEL)
+channel=$(<crates/sotid/RELEASE_CHANNEL)
 target_dir="${CARGO_TARGET_DIR:-target}"
 
-version="$(script/get-crate-version zed)"
+version="$(script/get-crate-version sotid)"
 # Set RELEASE_VERSION so it's compiled into GPUI and it knows about the version.
 export RELEASE_VERSION="${version}"
 
@@ -126,7 +88,7 @@ if [[ ! "$lld_version" =~ LLD\ ([0-9]+)\. ]] || (( BASH_REMATCH[1] < 12 )); then
 fi
 
 # Build binary in release mode
-cargo --config .cargo/bundle-config.toml rustc --release --target "${target_triple}" --package zed --bin zed -- -C linker="$CC" -C llvm-args=-addrsig -C link-arg=-fuse-ld=lld -C link-arg=--ld-path="$lld" -C link-arg=-Wl,--icf=safe
+cargo --config .cargo/bundle-config.toml rustc --release --target "${target_triple}" --package sotid --bin sotid -- -C linker="$CC" -C llvm-args=-addrsig -C link-arg=-fuse-ld=lld -C link-arg=--ld-path="$lld" -C link-arg=-Wl,--icf=safe
 cargo --config .cargo/bundle-config.toml build --release --target "${target_triple}" --package cli
 # Build remote_server in separate invocation to prevent feature unification from other crates
 # from influencing dynamic libraries required by it.
@@ -136,33 +98,12 @@ if [[ "$remote_server_triple" == "$musl_triple" ]]; then
 fi
 cargo --config .cargo/bundle-config.toml build --release --target "${remote_server_triple}" --package remote_server
 
-if ! "$skip_sentry"; then
-    echo "Uploading zed debug symbols to sentry..."
-    # Sentry needs the full ELF for .eh_frame unwinding, not just the debug
-    # companion. See https://github.com/getsentry/symbolic/issues/783.
-    for attempt in 1 2 3; do
-        echo "Attempting sentry upload (attempt $attempt/3)..."
-        if sentry-cli debug-files upload --include-sources --wait -p zed -o zed-dev \
-            "${target_dir}/${target_triple}"/release/zed \
-            "${target_dir}/${remote_server_triple}"/release/remote-server; then
-            echo "Sentry upload successful on attempt $attempt"
-            break
-        fi
-        echo "Sentry upload failed on attempt $attempt" >&2
-        if [ "$attempt" -eq 3 ]; then
-            echo "All sentry upload attempts failed; refusing to package binaries without uploaded symbols." >&2
-            exit 1
-        fi
-    done
-fi
-
 # Split debug symbols into local .dbg files, then strip debug info and local
-# symbols from the shipped binaries. Sentry receives the full unstripped
-# binaries above; the .dbg files keep symbols recoverable when that upload
-# is skipped.
+# symbols from the shipped binaries. The .dbg files keep symbols recoverable
+# for post-mortem debugging.
 # We use llvm-objcopy because GNU objcopy on older distros (e.g. Ubuntu 20.04)
 # doesn't understand CREL sections produced by newer LLVM.
-llvm-objcopy --only-keep-debug "${target_dir}/${target_triple}/release/zed" "${target_dir}/${target_triple}/release/zed.dbg"
+llvm-objcopy --only-keep-debug "${target_dir}/${target_triple}/release/sotid" "${target_dir}/${target_triple}/release/sotid.dbg"
 llvm-objcopy --only-keep-debug "${target_dir}/${remote_server_triple}/release/remote-server" "${target_dir}/${remote_server_triple}/release/remote-server.dbg"
 
 # Ensure that remote_server does not depend on libssl nor libcrypto, as we got rid of these deps.
@@ -174,6 +115,27 @@ if ldd "${target_dir}/${remote_server_triple}/release/remote-server" | grep -q '
     fi
 fi
 
+# Build the second Linux arch so the app ships a remote_server for both x86_64
+# and aarch64 Linux remotes. The native arch is already built above; the
+# non-native one is cross-compiled with cargo-zigbuild for uniformity across the
+# bundle scripts.
+host_arch=$(uname -m)
+for linux_arch in x86_64 aarch64; do
+    if [[ "$linux_arch" == "$host_arch" ]]; then
+        continue
+    fi
+    linux_triple="${linux_arch}-unknown-linux-musl"
+    if "$rustup_installed"; then
+        rustup target add "$linux_triple"
+    fi
+    if ! command -v cargo-zigbuild >/dev/null 2>&1; then
+        cargo install --locked cargo-zigbuild
+    fi
+    RUSTFLAGS="-C target-feature=+crt-static" \
+        cargo --config .cargo/bundle-config.toml zigbuild --release --target "$linux_triple" --package remote_server
+    llvm-objcopy --only-keep-debug "${target_dir}/${linux_triple}/release/remote-server" "${target_dir}/${linux_triple}/release/remote-server.dbg"
+done
+
 suffix=""
 if [ "$channel" != "stable" ]; then
   suffix="-$channel"
@@ -183,14 +145,36 @@ fi
 # into a temp directory.
 temp_dir=$(mktemp -d)
 trap 'rm -rf "$temp_dir"' EXIT
-zed_dir="${temp_dir}/zed$suffix.app"
+sotid_dir="${temp_dir}/sotid$suffix.app"
 
 # Cargo may reuse its outputs on the next invocation. Strip packaging copies
-# so reruns still upload full ELFs and extract complete debug companions.
-mkdir -p "${zed_dir}/bin" "${zed_dir}/libexec"
-llvm-objcopy --strip-unneeded "${target_dir}/${target_triple}/release/zed" "${zed_dir}/libexec/zed-editor"
-llvm-objcopy --strip-debug --discard-all "${target_dir}/${target_triple}/release/cli" "${zed_dir}/bin/zed"
-llvm-objcopy --strip-debug --discard-all "${target_dir}/${remote_server_triple}/release/remote-server" "${temp_dir}/remote_server"
+# so reruns still extract complete debug companions.
+mkdir -p "${sotid_dir}/bin" "${sotid_dir}/libexec"
+llvm-objcopy --strip-unneeded "${target_dir}/${target_triple}/release/sotid" "${sotid_dir}/libexec/sotid-editor"
+llvm-objcopy --strip-debug --discard-all "${target_dir}/${target_triple}/release/cli" "${sotid_dir}/bin/sotid"
+
+# Bundle the remote_server for both Linux archs so connecting to a Linux
+# remote never requires a download or compile. Each is stripped, gzipped, and
+# placed next to the editor in libexec/; the runtime resolves it via the
+# executable's directory.
+for linux_arch in x86_64 aarch64; do
+    linux_triple="${linux_arch}-unknown-linux-musl"
+    if [[ "$linux_triple" != "$remote_server_triple" ]]; then
+        llvm-objcopy --strip-debug --discard-all "${target_dir}/${linux_triple}/release/remote-server" "${temp_dir}/remote_server_${linux_arch}"
+    else
+        llvm-objcopy --strip-debug --discard-all "${target_dir}/${remote_server_triple}/release/remote-server" "${temp_dir}/remote_server_${linux_arch}"
+    fi
+    gzip -f --stdout --best "${temp_dir}/remote_server_${linux_arch}" > "${target_dir}/sotid-remote-server-linux-${linux_arch}.gz"
+    cp "${target_dir}/sotid-remote-server-linux-${linux_arch}.gz" "${sotid_dir}/libexec/"
+done
+
+# Fail the bundle if either Linux remote_server is missing from the app.
+for linux_arch in x86_64 aarch64; do
+    if [ ! -f "${sotid_dir}/libexec/sotid-remote-server-linux-${linux_arch}.gz" ]; then
+        echo "Error: missing bundled remote_server sotid-remote-server-linux-${linux_arch}.gz" >&2
+        exit 1
+    fi
+done
 
 # Libs
 # Bundle libstdc++ so older supported systems can run binaries built with our
@@ -200,55 +184,53 @@ llvm-objcopy --strip-debug --discard-all "${target_dir}/${remote_server_triple}/
 # get dlopen'd are built against the system GLib, and resolving them against an
 # older bundled copy fails with missing symbols.
 find_libs() {
-    ldd ${target_dir}/${target_triple}/release/zed |\
+    ldd ${target_dir}/${target_triple}/release/sotid |\
         cut -d' ' -f3 |\
         grep -v '\<\(libc.so\|libgcc_s.so\|libm.so\|libpthread.so\|libdl.so\|libasound.so\)' |\
         grep -v '\<\(libglib-2.0.so\|libgobject-2.0.so\|libgio-2.0.so\|libgmodule-2.0.so\|libpcre.so\|libpcre2-8.so\|libmount.so\|libblkid.so\|libselinux.so\|libffi.so\|libresolv.so\|libz.so\)'
 }
 
-mkdir -p "${zed_dir}/lib"
-rm -rf "${zed_dir}/lib/*"
-cp $(find_libs) "${zed_dir}/lib"
+mkdir -p "${sotid_dir}/lib"
+rm -rf "${sotid_dir}/lib/*"
+cp $(find_libs) "${sotid_dir}/lib"
 
 # Icons
-mkdir -p "${zed_dir}/share/icons/hicolor/512x512/apps"
-cp "crates/zed/resources/app-icon$suffix.png" "${zed_dir}/share/icons/hicolor/512x512/apps/zed.png"
-mkdir -p "${zed_dir}/share/icons/hicolor/1024x1024/apps"
-cp "crates/zed/resources/app-icon$suffix@2x.png" "${zed_dir}/share/icons/hicolor/1024x1024/apps/zed.png"
+mkdir -p "${sotid_dir}/share/icons/hicolor/512x512/apps"
+cp "crates/sotid/resources/app-icon$suffix.png" "${sotid_dir}/share/icons/hicolor/512x512/apps/sotid.png"
+mkdir -p "${sotid_dir}/share/icons/hicolor/1024x1024/apps"
+cp "crates/sotid/resources/app-icon$suffix@2x.png" "${sotid_dir}/share/icons/hicolor/1024x1024/apps/sotid.png"
 
 # .desktop
 export DO_STARTUP_NOTIFY="true"
-export APP_CLI="zed"
-export APP_ICON="zed"
+export APP_CLI="sotid"
+export APP_ICON="sotid"
 export APP_ARGS="%U"
 if [[ "$channel" == "preview" ]]; then
-  export APP_NAME="Zed Preview"
-  APP_ID="dev.zed.Zed-Preview"
+  export APP_NAME="Sotid Preview"
+  APP_ID="de.sorcarion.Sotid-Preview"
 elif [[ "$channel" == "nightly" ]]; then
-  export APP_NAME="Zed Nightly"
-  APP_ID="dev.zed.Zed-Nightly"
+  export APP_NAME="Sotid Nightly"
+  APP_ID="de.sorcarion.Sotid-Nightly"
 elif [[ "$channel" == "dev" ]]; then
-  export APP_NAME="Zed Devel"
-  APP_ID="dev.zed.Zed-Dev"
+  export APP_NAME="Sotid Devel"
+  APP_ID="de.sorcarion.Sotid-Dev"
 else
-  export APP_NAME="Zed"
-  APP_ID="dev.zed.Zed"
+  export APP_NAME="Sotid"
+  APP_ID="de.sorcarion.Sotid"
 fi
 
-mkdir -p "${zed_dir}/share/applications"
-envsubst < "crates/zed/resources/zed.desktop.in" > "${zed_dir}/share/applications/$APP_ID.desktop"
-chmod +x "${zed_dir}/share/applications/$APP_ID.desktop"
+mkdir -p "${sotid_dir}/share/applications"
+envsubst < "crates/sotid/resources/sotid.desktop.in" > "${sotid_dir}/share/applications/$APP_ID.desktop"
+chmod +x "${sotid_dir}/share/applications/$APP_ID.desktop"
 
 # Copy generated licenses so they'll end up in archive too
-cp "assets/licenses.md" "${zed_dir}/licenses.md"
+cp "assets/licenses.md" "${sotid_dir}/licenses.md"
 
 # Create archive out of everything that's in the temp directory
 arch=$(uname -m)
-archive="zed-linux-${arch}.tar.gz"
+archive="sotid-linux-${arch}.tar.gz"
 
 rm -rf "${archive}"
-remove_match="zed(-[a-zA-Z0-9]+)?-linux-$(uname -m)\.tar\.gz"
+remove_match="sotid(-[a-zA-Z0-9]+)?-linux-$(uname -m)\.tar\.gz"
 ls "${target_dir}/release" | grep -E ${remove_match} | xargs -d "\n" -I {} rm -f "${target_dir}/release/{}" || true
-tar -czvf "${target_dir}/release/$archive" -C ${temp_dir} "zed$suffix.app"
-
-gzip -f --stdout --best "${temp_dir}/remote_server" > "${target_dir}/zed-remote-server-linux-${arch}.gz"
+tar -czvf "${target_dir}/release/$archive" -C ${temp_dir} "sotid$suffix.app"

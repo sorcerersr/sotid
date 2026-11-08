@@ -1,5 +1,6 @@
 mod capabilities;
 pub mod extension_builder;
+mod extension_api;
 mod extension_events;
 mod extension_host_proxy;
 mod extension_manifest;
@@ -15,10 +16,11 @@ use async_trait::async_trait;
 use gpui::{App, EntityId, Task};
 use language::LanguageName;
 use semver::Version;
-use task::{SpawnInTerminal, ZedDebugConfig};
+use task::{SpawnInTerminal, SotidDebugConfig};
 use util::{paths::normalize_path, rel_path::RelPath};
 
 pub use crate::capabilities::*;
+pub use crate::extension_api::*;
 pub use crate::extension_events::*;
 pub use crate::extension_host_proxy::*;
 pub use crate::extension_manifest::*;
@@ -139,18 +141,6 @@ pub trait Extension: Send + Sync + 'static {
         worktree: Option<Arc<dyn WorktreeDelegate>>,
     ) -> Result<SlashCommandOutput>;
 
-    async fn context_server_command(
-        &self,
-        context_server_id: Arc<str>,
-        project: Arc<dyn ProjectDelegate>,
-    ) -> Result<Command>;
-
-    async fn context_server_configuration(
-        &self,
-        context_server_id: Arc<str>,
-        project: Arc<dyn ProjectDelegate>,
-    ) -> Result<Option<ContextServerConfiguration>>;
-
     async fn suggest_docs_packages(&self, provider: Arc<str>) -> Result<Vec<String>>;
 
     async fn index_docs(
@@ -174,7 +164,7 @@ pub trait Extension: Send + Sync + 'static {
         config: serde_json::Value,
     ) -> Result<StartDebuggingRequestArgumentsRequest>;
 
-    async fn dap_config_to_scenario(&self, config: ZedDebugConfig) -> Result<DebugScenario>;
+    async fn dap_config_to_scenario(&self, config: SotidDebugConfig) -> Result<DebugScenario>;
 
     async fn dap_locator_create_scenario(
         &self,

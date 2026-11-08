@@ -161,6 +161,7 @@ pub struct BreakpointStore {
     mode: BreakpointStoreMode,
 }
 
+#[allow(dead_code)]
 impl BreakpointStore {
     pub fn init(client: &AnyProtoClient) {
         client.add_entity_request_handler(Self::handle_toggle_breakpoint);
@@ -1000,8 +1001,8 @@ impl Breakpoint {
         _path: &Path,
         position: &text::Anchor,
         session_states: &HashMap<SessionId, BreakpointSessionState>,
-    ) -> Option<client::proto::Breakpoint> {
-        Some(client::proto::Breakpoint {
+    ) -> Option<rpc::proto::Breakpoint> {
+        Some(rpc::proto::Breakpoint {
             position: Some(serialize_text_anchor(position)),
             state: match self.state {
                 BreakpointState::Enabled => proto::BreakpointState::Enabled.into(),
@@ -1028,7 +1029,7 @@ impl Breakpoint {
         })
     }
 
-    fn from_proto(breakpoint: client::proto::Breakpoint) -> Option<Self> {
+    fn from_proto(breakpoint: rpc::proto::Breakpoint) -> Option<Self> {
         Some(Self {
             state: match proto::BreakpointState::try_from(breakpoint.state).ok() {
                 Some(proto::BreakpointState::Disabled) => BreakpointState::Disabled,

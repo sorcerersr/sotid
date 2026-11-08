@@ -1,16 +1,15 @@
 use crate::{
     NewFile, Open, OpenMode, PathList, RecentWorkspace, SerializedWorkspaceLocation,
-    ToggleWorkspaceSidebar, Workspace, WorkspaceSettings,
+    Workspace, WorkspaceSettings,
     item::{Item, ItemEvent},
     persistence::WorkspaceDb,
 };
-use agent_settings::AgentSettings;
 use git::Clone as GitClone;
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
     ParentElement, Render, Styled, Task, TaskExt, Window, actions,
 };
-use gpui::{WeakEntity, linear_color_stop, linear_gradient};
+use gpui::{WeakEntity};
 use menu::{SelectNext, SelectPrevious};
 
 use schemars::JsonSchema;
@@ -18,8 +17,8 @@ use serde::{Deserialize, Serialize};
 use settings::{DefaultOpenBehavior, Settings};
 use ui::{ButtonLike, Divider, DividerColor, KeyBinding, Vector, VectorName, prelude::*};
 use util::ResultExt;
-use zed_actions::{
-    Extensions, OpenKeymap, OpenOnboarding, OpenSettings, assistant::ToggleFocus, command_palette,
+use sotid_actions::{
+    Extensions, OpenKeymap, OpenOnboarding, OpenSettings, command_palette,
 };
 
 #[derive(PartialEq, Clone, Debug, Deserialize, Serialize, JsonSchema, Action)]
@@ -322,60 +321,11 @@ impl WelcomePage {
                         })
                         .log_err();
                 } else {
-                    use zed_actions::OpenRecent;
+                    use sotid_actions::OpenRecent;
                     window.dispatch_action(OpenRecent::default().boxed_clone(), cx);
                 }
             }
         }
-    }
-
-    fn render_agent_card(&self, tab_index: usize, cx: &mut Context<Self>) -> impl IntoElement {
-        let focus = self.focus_handle.clone();
-        let color = cx.theme().colors();
-
-        let description = "Run multiple threads at once, mix and match any ACP-compatible agent, and keep work conflict-free with worktrees.";
-
-        v_flex()
-            .w_full()
-            .p_2()
-            .rounded_md()
-            .border_1()
-            .border_color(color.border_variant)
-            .bg(linear_gradient(
-                360.,
-                linear_color_stop(color.panel_background, 1.0),
-                linear_color_stop(color.editor_background, 0.45),
-            ))
-            .child(
-                h_flex()
-                    .gap_1p5()
-                    .child(
-                        Icon::new(IconName::ZedAssistant)
-                            .color(Color::Muted)
-                            .size(IconSize::Small),
-                    )
-                    .child(Label::new("Collaborate with Agents")),
-            )
-            .child(
-                Label::new(description)
-                    .size(LabelSize::Small)
-                    .color(Color::Muted)
-                    .mb_2(),
-            )
-            .child(
-                Button::new("open-agent", "Open Agent Panel")
-                    .full_width()
-                    .tab_index(tab_index as isize)
-                    .style(ButtonStyle::Outlined)
-                    .key_binding(
-                        KeyBinding::for_action_in(&ToggleFocus, &self.focus_handle, cx)
-                            .size(rems_from_px(12_f32)),
-                    )
-                    .on_click(move |_, window, cx| {
-                        focus.dispatch_action(&ToggleWorkspaceSidebar, window, cx);
-                        focus.dispatch_action(&ToggleFocus, window, cx);
-                    }),
-            )
     }
 
     fn render_recent_project_section(
@@ -418,9 +368,7 @@ impl Render for WelcomePage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let (first_section, second_section) = CONTENT;
         let first_section_entries = first_section.entries.len();
-        let mut next_tab_index = first_section_entries + second_section.entries.len();
-
-        let ai_enabled = AgentSettings::get_global(cx).enabled(cx);
+        let next_tab_index = first_section_entries + second_section.entries.len();
 
         let recent_projects = self
             .recent_workspaces
@@ -480,7 +428,7 @@ impl Render for WelcomePage {
                             .justify_center()
                             .mb_4()
                             .gap_4()
-                            .child(Vector::square(VectorName::ZedLogo, rems_from_px(45_f32)))
+                            .child(Vector::square(VectorName::SotidLogo, rems_from_px(45_f32)))
                             .child(
                                 v_flex().child(Headline::new(welcome_label)).child(
                                     Label::new("The editor for what's next")
@@ -492,11 +440,6 @@ impl Render for WelcomePage {
                     )
                     .child(first_section.render(Default::default(), &self.focus_handle))
                     .child(second_section)
-                    .when(ai_enabled && !showing_recent_projects, |this| {
-                        let agent_tab_index = next_tab_index;
-                        next_tab_index += 1;
-                        this.child(self.render_agent_card(agent_tab_index, cx))
-                    })
                     .when(!self.fallback_to_recent_projects, |this| {
                         this.child(
                             v_flex().gap_4().child(Divider::horizontal()).child(
@@ -529,9 +472,6 @@ impl Item for WelcomePage {
         "Welcome".into()
     }
 
-    fn telemetry_event_text(&self) -> Option<&'static str> {
-        Some("New Welcome Page Opened")
-    }
 
     fn show_toolbar(&self) -> bool {
         false

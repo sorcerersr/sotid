@@ -30,9 +30,10 @@ wasmtime::component::bindgen!({
         "zed:extension/platform": since_v0_6_0::zed::extension::platform,
         "zed:extension/process": latest::zed::extension::process,
         "zed:extension/slash-command": latest::zed::extension::slash_command,
-        "zed:extension/context-server": latest::zed::extension::context_server,
     },
 });
+
+pub use self::zed::extension::*;
 
 mod settings {
     #![allow(dead_code)]
@@ -110,6 +111,8 @@ impl From<DownloadedFileType> for latest::DownloadedFileType {
         }
     }
 }
+
+impl context_server::Host for WasmState {}
 
 impl HostKeyValueStore for WasmState {
     async fn insert(

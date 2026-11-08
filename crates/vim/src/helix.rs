@@ -99,20 +99,19 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
     Vim::action(editor, cx, Vim::helix_select_next);
     Vim::action(editor, cx, Vim::helix_select_previous);
     Vim::action(editor, cx, Vim::helix_trim_selections);
-    Vim::action(editor, cx, |vim, _: &PushHelixSurroundAdd, window, cx| {
-        vim.clear_operator(window, cx);
-        vim.push_operator(Operator::HelixSurroundAdd, window, cx);
+    Vim::action(editor, cx, |vim, _: &PushHelixSurroundAdd, _window, cx| {
+        vim.clear_operator(cx);
+        vim.push_operator(Operator::HelixSurroundAdd, cx);
     });
     Vim::action(
         editor,
         cx,
-        |vim, _: &PushHelixSurroundReplace, window, cx| {
-            vim.clear_operator(window, cx);
+        |vim, _: &PushHelixSurroundReplace, _window, cx| {
+            vim.clear_operator(cx);
             vim.push_operator(
                 Operator::HelixSurroundReplace {
                     replaced_char: None,
                 },
-                window,
                 cx,
             );
         },
@@ -120,9 +119,9 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
     Vim::action(
         editor,
         cx,
-        |vim, _: &PushHelixSurroundDelete, window, cx| {
-            vim.clear_operator(window, cx);
-            vim.push_operator(Operator::HelixSurroundDelete, window, cx);
+        |vim, _: &PushHelixSurroundDelete, _window, cx| {
+            vim.clear_operator(cx);
+            vim.push_operator(Operator::HelixSurroundDelete, cx);
         },
     );
 }
@@ -167,7 +166,7 @@ impl Vim {
         self.update_editor(cx, |_, editor, cx| {
             let text_layout_details = editor.text_layout_details(window, cx);
             editor.change_selections(Default::default(), window, cx, |s| {
-                if let Motion::ZedSearchResult { new_selections, .. } = &motion {
+                if let Motion::SearchResult { new_selections, .. } = &motion {
                     s.select_anchor_ranges(new_selections.clone());
                     return;
                 };
@@ -1232,11 +1231,11 @@ impl Vim {
         };
 
         if data.labels.is_empty() {
-            self.clear_helix_jump_ui(window, cx);
+            self.clear_helix_jump_ui(cx);
             return;
         }
 
-        if !self.apply_helix_jump_ui(data.overlays, window, cx) {
+        if !self.apply_helix_jump_ui(data.overlays, cx) {
             return;
         }
 
@@ -1246,7 +1245,6 @@ impl Vim {
                 first_char: None,
                 labels: data.labels,
             },
-            window,
             cx,
         );
     }

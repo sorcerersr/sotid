@@ -5,7 +5,7 @@ use tree_sitter::{Query, QueryMatch};
 use crate::MigrationPatterns;
 use crate::patterns::{
     KEYMAP_ACTION_ARRAY_ARGUMENT_AS_OBJECT_PATTERN, KEYMAP_ACTION_ARRAY_PATTERN,
-    KEYMAP_ACTION_STRING_PATTERN, KEYMAP_CONTEXT_PATTERN,
+    KEYMAP_CONTEXT_PATTERN,
 };
 
 pub const KEYMAP_PATTERNS: MigrationPatterns = &[
@@ -17,7 +17,6 @@ pub const KEYMAP_PATTERNS: MigrationPatterns = &[
         KEYMAP_ACTION_ARRAY_ARGUMENT_AS_OBJECT_PATTERN,
         replace_action_argument_object_with_single_value,
     ),
-    (KEYMAP_ACTION_STRING_PATTERN, replace_string_action),
     (KEYMAP_CONTEXT_PATTERN, rename_context_key),
 ];
 
@@ -228,51 +227,6 @@ static UNWRAP_OBJECTS: LazyLock<HashMap<&str, HashMap<&str, &str>>> = LazyLock::
     ])
 });
 
-fn replace_string_action(
-    contents: &str,
-    mat: &QueryMatch,
-    query: &Query,
-) -> Option<(Range<usize>, String)> {
-    let action_name_ix = query.capture_index_for_name("action_name")?;
-    let action_name_node = mat.nodes_for_capture_index(action_name_ix).next()?;
-    let action_name_range = action_name_node.byte_range();
-    let action_name = contents.get(action_name_range.clone())?;
-
-    if let Some(new_action_name) = STRING_REPLACE.get(&action_name) {
-        return Some((action_name_range, new_action_name.to_string()));
-    }
-
-    None
-}
-
-/// "ctrl-k ctrl-1": "inline_completion::ToggleMenu" -> "edit_prediction::ToggleMenu"
-static STRING_REPLACE: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
-    HashMap::from_iter([
-        (
-            "inline_completion::ToggleMenu",
-            "edit_prediction::ToggleMenu",
-        ),
-        ("editor::NextInlineCompletion", "editor::NextEditPrediction"),
-        (
-            "editor::PreviousInlineCompletion",
-            "editor::PreviousEditPrediction",
-        ),
-        (
-            "editor::AcceptPartialInlineCompletion",
-            "editor::AcceptPartialEditPrediction",
-        ),
-        ("editor::ShowInlineCompletion", "editor::ShowEditPrediction"),
-        (
-            "editor::AcceptInlineCompletion",
-            "editor::AcceptEditPrediction",
-        ),
-        (
-            "editor::ToggleInlineCompletions",
-            "editor::ToggleEditPrediction",
-        ),
-    ])
-});
-
 fn rename_context_key(
     contents: &str,
     mat: &QueryMatch,
@@ -296,12 +250,6 @@ fn rename_context_key(
 }
 
 /// "context": "Editor && inline_completion && !showing_completions" -> "Editor && edit_prediction && !showing_completions"
-pub static CONTEXT_REPLACE: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
-    HashMap::from_iter([
-        ("inline_completion", "edit_prediction"),
-        (
-            "inline_completion_requires_modifier",
-            "edit_prediction_requires_modifier",
-        ),
-    ])
+static CONTEXT_REPLACE: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
+    HashMap::from_iter([("inline_completion", "edit_prediction")])
 });

@@ -16,6 +16,29 @@ pub use typed_envelope::*;
 
 include!(concat!(env!("OUT_DIR"), "/zed.messages.rs"));
 
+#[derive(
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, serde::Serialize, serde::Deserialize,
+)]
+pub struct ChannelId(pub u64);
+
+impl std::fmt::Display for ChannelId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+pub struct ProjectId(pub u64);
+
+impl ProjectId {
+    pub fn to_proto(self) -> u64 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParticipantIndex(pub u32);
+
 pub const REMOTE_SERVER_PEER_ID: PeerId = PeerId { owner_id: 0, id: 0 };
 pub const REMOTE_SERVER_PROJECT_ID: u64 = 0;
 
@@ -115,10 +138,6 @@ messages!(
     (GetDeclarationResponse, Background),
     (GetDefinition, Background),
     (GetDefinitionResponse, Background),
-    (GetEditPredictionDefinition, Background),
-    (GetEditPredictionDefinitionResponse, Background),
-    (GetEditPredictionTypeDefinition, Background),
-    (GetEditPredictionTypeDefinitionResponse, Background),
     (GetDocumentHighlights, Background),
     (GetDocumentHighlightsResponse, Background),
     (GetDocumentSymbols, Background),
@@ -396,8 +415,6 @@ messages!(
     (DirectoryEnvironment, Background),
     (GetAgentServerCommand, Background),
     (AgentServerCommand, Background),
-    (GetContextServerCommand, Background),
-    (ContextServerCommand, Background),
     (ExternalAgentsUpdated, Background),
     (ExternalExtensionAgentsUpdated, Background),
     (ExternalAgentLoadingStatusUpdated, Background),
@@ -462,14 +479,6 @@ request_messages!(
     (GetCodeActions, GetCodeActionsResponse),
     (GetCompletions, GetCompletionsResponse),
     (GetDefinition, GetDefinitionResponse),
-    (
-        GetEditPredictionDefinition,
-        GetEditPredictionDefinitionResponse
-    ),
-    (
-        GetEditPredictionTypeDefinition,
-        GetEditPredictionTypeDefinitionResponse
-    ),
     (GetDeclaration, GetDeclarationResponse),
     (GetImplementation, GetImplementationResponse),
     (GetDocumentHighlights, GetDocumentHighlightsResponse),
@@ -644,7 +653,6 @@ request_messages!(
     (GetTerminalShell, GetTerminalShellResponse),
     (GetProcesses, GetProcessesResponse),
     (GetAgentServerCommand, AgentServerCommand),
-    (GetContextServerCommand, ContextServerCommand),
     (RemoteStarted, Ack),
     (GitGetWorktrees, GitWorktreesResponse),
     (GitGetHeadSha, GitGetHeadShaResponse),
@@ -677,16 +685,6 @@ lsp_messages!(
     (GetCodeLens, GetCodeLensResponse, true),
     (GetDocumentDiagnostics, GetDocumentDiagnosticsResponse, true),
     (GetDefinition, GetDefinitionResponse, true),
-    (
-        GetEditPredictionDefinition,
-        GetEditPredictionDefinitionResponse,
-        true
-    ),
-    (
-        GetEditPredictionTypeDefinition,
-        GetEditPredictionTypeDefinitionResponse,
-        true
-    ),
     (GetDeclaration, GetDeclarationResponse, true),
     (GetTypeDefinition, GetTypeDefinitionResponse, true),
     (GetImplementation, GetImplementationResponse, true),
@@ -732,8 +730,6 @@ entity_messages!(
     GetCodeLens,
     GetCompletions,
     GetDefinition,
-    GetEditPredictionDefinition,
-    GetEditPredictionTypeDefinition,
     GetDeclaration,
     GetImplementation,
     GetDocumentHighlights,
@@ -870,7 +866,6 @@ entity_messages!(
     LoadCommitTemplate,
     GitClone,
     GetAgentServerCommand,
-    GetContextServerCommand,
     ExternalAgentsUpdated,
     ExternalExtensionAgentsUpdated,
     ExternalAgentLoadingStatusUpdated,
@@ -1081,12 +1076,6 @@ impl LspQuery {
                 ("GetDocumentDiagnostics", false)
             }
             Some(lsp_query::Request::GetDefinition(_)) => ("GetDefinition", false),
-            Some(lsp_query::Request::GetEditPredictionDefinition(_)) => {
-                ("GetEditPredictionDefinition", false)
-            }
-            Some(lsp_query::Request::GetEditPredictionTypeDefinition(_)) => {
-                ("GetEditPredictionTypeDefinition", false)
-            }
             Some(lsp_query::Request::GetDeclaration(_)) => ("GetDeclaration", false),
             Some(lsp_query::Request::GetTypeDefinition(_)) => ("GetTypeDefinition", false),
             Some(lsp_query::Request::GetImplementation(_)) => ("GetImplementation", false),

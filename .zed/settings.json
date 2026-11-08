@@ -40,7 +40,7 @@
     "Rust": {
       "tasks": {
         "variables": {
-          "RUST_DEFAULT_PACKAGE_RUN": "zed",
+          "RUST_DEFAULT_PACKAGE_RUN": "sotid",
         },
       },
     },
@@ -63,6 +63,6 @@
   "formatter": "auto",
   "remove_trailing_whitespace_on_save": true,
   "ensure_final_newline_on_save": true,
-  "file_scan_exclusions": ["...", "crates/agent/src/tools/evals/fixtures"],
+  "file_scan_exclusions": ["..."],
   "read_only_files": ["**/.rustup/**", "**/.cargo/registry/**", "**/.cargo/git/**", "target/**/*.rs", "**/*.lock"],
 }

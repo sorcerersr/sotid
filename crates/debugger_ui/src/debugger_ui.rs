@@ -7,13 +7,12 @@ use new_process_modal::{NewProcessModal, NewProcessMode};
 use project::debugger::{self, breakpoint_store::SourceBreakpoint, session::ThreadStatus};
 use schemars::JsonSchema;
 use serde::Deserialize;
-use session::DebugSession;
 
 use tasks_ui::{Spawn, TaskOverrides};
 use ui::{FluentBuilder, InteractiveElement};
 use util::maybe;
 use workspace::{ShutdownDebugAdapters, Workspace};
-use zed_actions::debug_panel::{Toggle, ToggleFocus};
+use sotid_actions::debug_panel::{Toggle, ToggleFocus};
 
 pub mod attach_modal;
 pub mod debugger_panel;
@@ -109,8 +108,6 @@ actions!(
 );
 
 pub fn init(cx: &mut App) {
-    workspace::FollowableViewRegistry::register::<DebugSession>(cx);
-
     cx.observe_new(|workspace: &mut Workspace, _, _| {
         workspace
             .register_action(spawn_task_or_modal)

@@ -19,7 +19,7 @@ use async_lock::Semaphore;
 use buffer_diff::{
     BufferDiff, DiffHunk, DiffHunkSecondaryStatus, DiffOperations, PendingHunk, PendingSense,
 };
-use client::ProjectId;
+use rpc::proto::ProjectId;
 use collections::HashMap;
 pub use conflict_set::{ConflictRegion, ConflictSet, ConflictSetSnapshot, ConflictSetUpdate};
 use file_content::{decode_text, encode_text};
@@ -899,6 +899,7 @@ enum GitJobKey {
     ReloadGitState,
 }
 
+#[allow(dead_code)]
 impl GitStore {
     pub fn local(
         worktree_store: &Entity<WorktreeStore>,
@@ -3265,11 +3266,6 @@ impl GitStore {
                 upstream_project_id,
                 ..
             } => {
-                if upstream_client.is_via_collab() {
-                    return Task::ready(Err(anyhow!(
-                        "Git Clone isn't supported for project guests"
-                    )));
-                }
                 let request = upstream_client.request(proto::GitClone {
                     project_id: *upstream_project_id,
                     abs_path: path.to_string_lossy().into_owned(),
@@ -3296,15 +3292,8 @@ impl GitStore {
                     .spawn(async move { fs.git_config(&path, args).await })
             }
             GitStoreState::Remote {
-                upstream_client, ..
+                ..
             } => {
-                // Prevent running git config commands for collab.
-                if upstream_client.is_via_collab() {
-                    return Task::ready(Err(anyhow!(
-                        "Git Config isn't support for project guests"
-                    )));
-                }
-
                 // TODO: Implement this for remote repositories.
                 Task::ready(Err(anyhow!(
                     "Git Config isn't yet supported for remote projects"

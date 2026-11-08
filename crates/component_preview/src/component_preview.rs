@@ -1,6 +1,5 @@
 mod persistence;
 
-use client::UserStore;
 use collections::HashMap;
 use component::{ComponentId, ComponentMetadata, ComponentStatus, components};
 use gpui::{
@@ -8,7 +7,7 @@ use gpui::{
 };
 use gpui::{ListState, ScrollHandle, ScrollStrategy, UniformListScrollHandle};
 use language::LanguageRegistry;
-use notifications::status_toast::StatusToast;
+use workspace::StatusToast;
 use persistence::ComponentPreviewDb;
 use project::Project;
 use std::{iter::Iterator, ops::Range, sync::Arc};
@@ -35,14 +34,12 @@ pub fn init(app_state: Arc<AppState>, cx: &mut App) {
                 let app_state = app_state.clone();
 
                 let language_registry = app_state.languages.clone();
-                let user_store = app_state.user_store.clone();
 
                 let component_preview = cx.new(|cx| {
                     ComponentPreview::new(
                         weak_workspace.clone(),
                         project.clone(),
                         language_registry,
-                        user_store,
                         None,
                         None,
                         window,
@@ -104,7 +101,6 @@ pub struct ComponentPreview {
     language_registry: Arc<LanguageRegistry>,
     nav_scroll_handle: UniformListScrollHandle,
     project: Entity<Project>,
-    user_store: Entity<UserStore>,
     workspace: WeakEntity<Workspace>,
     workspace_id: Option<WorkspaceId>,
     _view_scroll_handle: ScrollHandle,
@@ -115,7 +111,6 @@ impl ComponentPreview {
         workspace: WeakEntity<Workspace>,
         project: Entity<Project>,
         language_registry: Arc<LanguageRegistry>,
-        user_store: Entity<UserStore>,
         selected_index: impl Into<Option<usize>>,
         active_page: Option<PreviewPage>,
         window: &mut Window,
@@ -147,7 +142,6 @@ impl ComponentPreview {
             language_registry,
             nav_scroll_handle: UniformListScrollHandle::new(),
             project,
-            user_store,
             workspace,
             workspace_id: None,
             _view_scroll_handle: ScrollHandle::new(),
@@ -555,7 +549,7 @@ impl ComponentPreview {
         if let Some(workspace) = self.workspace.upgrade() {
             workspace.update(cx, |workspace, cx| {
                 let status_toast =
-                    StatusToast::new("`zed/new-notification-system` created!", cx, |this, _cx| {
+                    StatusToast::new("`sotid/new-notification-system` created!", cx, |this, _cx| {
                         this.icon(
                             Icon::new(IconName::GitBranch)
                                 .size(IconSize::Small)
@@ -713,9 +707,6 @@ impl Item for ComponentPreview {
         "Component Preview".into()
     }
 
-    fn telemetry_event_text(&self) -> Option<&'static str> {
-        None
-    }
 
     fn show_toolbar(&self) -> bool {
         false
@@ -735,7 +726,6 @@ impl Item for ComponentPreview {
         Self: Sized,
     {
         let language_registry = self.language_registry.clone();
-        let user_store = self.user_store.clone();
         let weak_workspace = self.workspace.clone();
         let project = self.project.clone();
         let selected_index = self.cursor_index;
@@ -745,7 +735,6 @@ impl Item for ComponentPreview {
             weak_workspace,
             project,
             language_registry,
-            user_store,
             selected_index,
             Some(active_page),
             window,
@@ -803,7 +792,6 @@ impl SerializableItem for ComponentPreview {
                 Err(_) => ActivePageId::default(),
             };
 
-        let user_store = project.read(cx).user_store();
         let language_registry = project.read(cx).languages().clone();
         let preview_page = if deserialized_active_page.0 == ActivePageId::default().0 {
             Some(PreviewPage::default())
@@ -821,7 +809,6 @@ impl SerializableItem for ComponentPreview {
         };
 
         window.spawn(cx, async move |cx| {
-            let user_store = user_store.clone();
             let language_registry = language_registry.clone();
             let weak_workspace = workspace.clone();
             let project = project.clone();
@@ -831,7 +818,6 @@ impl SerializableItem for ComponentPreview {
                         weak_workspace,
                         project,
                         language_registry,
-                        user_store,
                         None,
                         preview_page,
                         window,

@@ -1080,11 +1080,11 @@ mod tests {
         let keymap = Keymap::new(vec![
             KeyBinding::new("space w w", ActionAlpha {}, Some("Workspace")),
             KeyBinding::new("space w x", ActionBeta {}, Some("Workspace")),
-            KeyBinding::new("space w w", NoAction {}, Some("AgentPanel")),
+            KeyBinding::new("space w w", NoAction {}, Some("DeeperContext")),
         ]);
         let context_stack = [
             KeyContext::parse("Workspace").unwrap(),
-            KeyContext::parse("AgentPanel").unwrap(),
+            KeyContext::parse("DeeperContext").unwrap(),
         ];
 
         for input in ["space", "space w"] {

@@ -339,7 +339,6 @@ impl CommitView {
             editor.rhs_editor().update(cx, |editor, cx| {
                 editor.set_show_bookmarks(false, cx);
                 editor.set_show_breakpoints(false, cx);
-                editor.set_show_diff_review_button(true, cx);
             });
 
             editor
@@ -546,8 +545,7 @@ impl CommitView {
         let stash = self.stash;
         let file_filter = self.file_filter.clone();
         let unshallow_state = self.repository.read(cx).unshallow_state();
-        let can_fetch = !self.project.read(cx).is_via_collab()
-            && unshallow_state != UnshallowState::Unshallowed;
+        let can_fetch = unshallow_state != UnshallowState::Unshallowed;
         let fetch_in_flight = unshallow_state == UnshallowState::InProgress;
         v_flex()
             .flex_grow(1.)
@@ -1228,9 +1226,6 @@ impl Item for CommitView {
         Editor::to_item_events(event, f)
     }
 
-    fn telemetry_event_text(&self) -> Option<&'static str> {
-        Some("Commit View Opened")
-    }
 
     fn deactivated(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.editor
@@ -1351,7 +1346,6 @@ impl Item for CommitView {
                     editor.rhs_editor().update(cx, |editor, cx| {
                         editor.set_show_bookmarks(false, cx);
                         editor.set_show_breakpoints(false, cx);
-                        editor.set_show_diff_review_button(true, cx);
                         editor.register_addon(CommitDiffAddon {
                             file_statuses,
                             commit_view,
@@ -1470,13 +1464,13 @@ impl Render for CommitViewToolbar {
                     .tooltip(move |_, cx| {
                         Tooltip::for_action(
                             "Buffer Search",
-                            &zed_actions::buffer_search::Deploy::find(),
+                            &sotid_actions::buffer_search::Deploy::find(),
                             cx,
                         )
                     })
                     .on_click(|_, window, cx| {
                         window.dispatch_action(
-                            Box::new(zed_actions::buffer_search::Deploy::find()),
+                            Box::new(sotid_actions::buffer_search::Deploy::find()),
                             cx,
                         );
                     }),

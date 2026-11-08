@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result, anyhow, bail};
-use cloud_api_types::ExtensionProvides;
+use crate::ExtensionProvides;
 use collections::{BTreeMap, BTreeSet, HashMap};
 use fs::Fs;
 use futures::StreamExt as _;
@@ -111,8 +111,6 @@ pub struct ExtensionManifest {
     #[serde(default)]
     pub language_servers: BTreeMap<LanguageServerName, LanguageServerManifestEntry>,
     #[serde(default)]
-    pub context_servers: BTreeMap<Arc<str>, ContextServerManifestEntry>,
-    #[serde(default)]
     pub slash_commands: BTreeMap<Arc<str>, SlashCommandManifestEntry>,
     #[serde(default)]
     pub snippets: Option<ExtensionSnippets>,
@@ -148,10 +146,6 @@ impl ExtensionManifest {
 
         if !self.language_servers.is_empty() {
             provides.insert(ExtensionProvides::LanguageServers);
-        }
-
-        if !self.context_servers.is_empty() {
-            provides.insert(ExtensionProvides::ContextServers);
         }
 
         if self.snippets.is_some() {
@@ -292,9 +286,6 @@ impl LanguageServerManifestEntry {
         self.opt_in_languages.contains(language)
     }
 }
-
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
-pub struct ContextServerManifestEntry {}
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub struct SlashCommandManifestEntry {
@@ -515,7 +506,6 @@ fn manifest_from_old_manifest(
             .map(|grammar_name| (grammar_name, Default::default()))
             .collect(),
         language_servers: Default::default(),
-        context_servers: BTreeMap::default(),
         slash_commands: BTreeMap::default(),
         snippets: None,
         capabilities: Vec::new(),
@@ -549,7 +539,6 @@ mod tests {
             languages: vec![],
             grammars: BTreeMap::default(),
             language_servers: BTreeMap::default(),
-            context_servers: BTreeMap::default(),
             slash_commands: BTreeMap::default(),
             snippets: None,
             capabilities: vec![],

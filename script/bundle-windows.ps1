@@ -13,7 +13,6 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
 $buildSuccess = $false
-$canCodeSign = $false
 
 $OSArchitecture = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {
     "X64" { "x86_64" }
@@ -56,9 +55,9 @@ if ($Help) {
     exit 0
 }
 
-Push-Location -Path crates/zed
+Push-Location -Path crates/sotid
 $channel = Get-Content "RELEASE_CHANNEL"
-$env:ZED_RELEASE_CHANNEL = $channel
+$env:SOTID_RELEASE_CHANNEL = $channel
 $env:RELEASE_CHANNEL = $channel
 Pop-Location
 
@@ -67,31 +66,13 @@ function CheckEnvironmentVariables {
         return
     }
 
-    $requiredVars = @('ZED_WORKSPACE', 'RELEASE_VERSION', 'ZED_RELEASE_CHANNEL')
+    $requiredVars = @('SOTID_WORKSPACE', 'RELEASE_VERSION', 'SOTID_RELEASE_CHANNEL')
 
     foreach ($var in $requiredVars) {
         if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($var))) {
             Write-Error "$var is not set"
             exit 1
         }
-    }
-
-    # On PRs from forks the signing secrets are not populated,
-    # so skip code signing instead of failing, like bundle-mac does.
-    $signingVars = @(
-        'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET',
-        'ACCOUNT_NAME', 'CERT_PROFILE_NAME', 'ENDPOINT',
-        'FILE_DIGEST', 'TIMESTAMP_DIGEST', 'TIMESTAMP_SERVER'
-    )
-
-    $missingVars = @($signingVars | Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) })
-    if ($missingVars.Count -eq 0) {
-        $script:canCodeSign = $true
-    } else {
-        Write-Host "====== WARNING ======"
-        Write-Host "One or more of the following variables are missing: $($missingVars -join ', ')"
-        Write-Host "This bundle will not be code signed"
-        Write-Host "====== WARNING ======"
     }
 }
 
@@ -100,7 +81,7 @@ function PrepareForBundle {
         Remove-Item -Path "$innoDir" -Recurse -Force
     }
     New-Item -Path "$innoDir" -ItemType Directory -Force
-    Copy-Item -Path "$env:ZED_WORKSPACE\crates\zed\resources\windows\*" -Destination "$innoDir" -Recurse -Force
+    Copy-Item -Path "$env:SOTID_WORKSPACE\crates\sotid\resources\windows\*" -Destination "$innoDir" -Recurse -Force
     New-Item -Path "$innoDir\make_appx" -ItemType Directory -Force
     New-Item -Path "$innoDir\appx" -ItemType Directory -Force
     New-Item -Path "$innoDir\bin" -ItemType Directory -Force
@@ -113,11 +94,11 @@ function GenerateLicenses {
     . $PSScriptRoot/generate-licenses.ps1
 }
 
-function BuildZedAndItsFriends {
-    Write-Output "Building Zed and its friends, for channel: $channel"
-    # Build zed.exe, cli.exe and auto-update-helper.exe
-    cargo --config .cargo/bundle-config.toml build --release --package zed --package cli --package auto_update_helper --target $target
-    Copy-Item -Path ".\$CargoOutDir\zed.exe" -Destination "$innoDir\Zed.exe" -Force
+function BuildSotidAndItsFriends {
+    Write-Output "Building Sotid and its friends, for channel: $channel"
+    # Build sotid.exe, cli.exe and auto-update-helper.exe
+    cargo --config .cargo/bundle-config.toml build --release --package sotid --package cli --package auto_update_helper --target $target
+    Copy-Item -Path ".\$CargoOutDir\sotid.exe" -Destination "$innoDir\Sotid.exe" -Force
     Copy-Item -Path ".\$CargoOutDir\cli.exe" -Destination "$innoDir\cli.exe" -Force
     Copy-Item -Path ".\$CargoOutDir\auto-update-helper.exe" -Destination "$innoDir\auto_update_helper.exe" -Force
     # Build explorer_command_injector.dll
@@ -132,7 +113,7 @@ function BuildZedAndItsFriends {
             cargo --config .cargo/bundle-config.toml build --release --package explorer_command_injector --target $target
         }
     }
-    Copy-Item -Path ".\$CargoOutDir\explorer_command_injector.dll" -Destination "$innoDir\zed_explorer_command_injector.dll" -Force
+    Copy-Item -Path ".\$CargoOutDir\explorer_command_injector.dll" -Destination "$innoDir\sotid_explorer_command_injector.dll" -Force
 }
 
 function BuildRemoteServer {
@@ -143,12 +124,7 @@ function BuildRemoteServer {
     Copy-Item -Path ".\$CargoOutDir\remote-server.exe" -Destination "$innoDir\remote_server.exe" -Force
     $remoteServerSrc = (Resolve-Path "$innoDir\remote_server.exe").Path
 
-    if ($canCodeSign) {
-        Write-Output "Code signing remote_server.exe"
-        & "$innoDir\sign.ps1" $remoteServerSrc
-    }
-
-    $remoteServerDst = "$env:ZED_WORKSPACE\target\zed-remote-server-windows-$Architecture.zip"
+    $remoteServerDst = "$env:SOTID_WORKSPACE\target\sotid-remote-server-windows-$Architecture.zip"
     Write-Output "Compressing remote_server to $remoteServerDst"
     Compress-Archive -Path $remoteServerSrc -DestinationPath $remoteServerDst -Force
     Remove-Item -Path $remoteServerSrc -Force
@@ -156,72 +132,71 @@ function BuildRemoteServer {
     Write-Output "Remote server compressed successfully"
 }
 
-function ZipZedAndItsFriendsDebug {
+function Compress-Gzip {
+    param([string]$Source, [string]$Destination)
+    $inputStream = [System.IO.File]::OpenRead($Source)
+    $outputStream = [System.IO.File]::Create($Destination)
+    $gzipStream = New-Object System.IO.Compression.GZipStream($outputStream, [System.IO.Compression.CompressionLevel]::Optimal)
+    $inputStream.CopyTo($gzipStream)
+    $gzipStream.Close()
+    $outputStream.Close()
+    $inputStream.Close()
+}
+
+function BuildLinuxRemoteServers {
+    Write-Output "Building Linux remote_server binaries for x86_64 and aarch64"
+    if (-not (Get-Command cargo-zigbuild -ErrorAction SilentlyContinue)) {
+        cargo install --locked cargo-zigbuild
+    }
+    foreach ($linuxArch in @("x86_64", "aarch64")) {
+        $linuxTarget = "$linuxArch-unknown-linux-musl"
+        rustup target add $linuxTarget
+        # +crt-static is applied via .cargo/bundle-config.toml for musl targets.
+        cargo --config .cargo/bundle-config.toml zigbuild --release --target $linuxTarget --package remote_server
+        $src = "./target/$linuxTarget/release/remote-server"
+        $gzPath = "$env:SOTID_WORKSPACE\target\sotid-remote-server-linux-$linuxArch.gz"
+        Compress-Gzip -Source $src -Destination $gzPath
+        Copy-Item -Path $gzPath -Destination "$innoDir\sotid-remote-server-linux-$linuxArch.gz" -Force
+    }
+
+    # Fail the bundle if either Linux remote_server is missing from the install dir.
+    foreach ($linuxArch in @("x86_64", "aarch64")) {
+        if (-not (Test-Path "$innoDir\sotid-remote-server-linux-$linuxArch.gz")) {
+            Write-Error "missing bundled remote_server sotid-remote-server-linux-$linuxArch.gz"
+            exit 1
+        }
+    }
+}
+
+function ZipSotidAndItsFriendsDebug {
     $items = @(
-        ".\$CargoOutDir\zed.pdb",
+        ".\$CargoOutDir\sotid.pdb",
         ".\$CargoOutDir\cli.pdb",
         ".\$CargoOutDir\auto_update_helper.pdb",
         ".\$CargoOutDir\explorer_command_injector.pdb",
         ".\$CargoOutDir\remote_server.pdb"
     )
 
-    Compress-Archive -Path $items -DestinationPath ".\$CargoOutDir\zed-$env:RELEASE_VERSION-$env:ZED_RELEASE_CHANNEL.dbg.zip" -Force
-}
-
-
-function UploadToSentry {
-    if (-not (Get-Command "sentry-cli" -ErrorAction SilentlyContinue)) {
-        Write-Output "sentry-cli not found. skipping sentry upload."
-        Write-Output "install with: 'winget install -e --id=Sentry.sentry-cli'"
-        return
-    }
-    if ([string]::IsNullOrWhiteSpace($env:SENTRY_AUTH_TOKEN)) {
-        Write-Output "missing SENTRY_AUTH_TOKEN. skipping sentry upload."
-        return
-    }
-    Write-Output "Uploading zed debug symbols to sentry..."
-    for ($i = 1; $i -le 3; $i++) {
-        try {
-            sentry-cli debug-files upload --include-sources --wait -p zed -o zed-dev $CargoOutDir
-            break
-        }
-        catch {
-            Write-Output "Sentry upload attempt $i failed: $_"
-            if ($i -eq 3) {
-                Write-Output "All sentry upload attempts failed"
-                throw
-            }
-            Start-Sleep -Seconds 2
-        }
-    }
+    Compress-Archive -Path $items -DestinationPath ".\$CargoOutDir\sotid-$env:RELEASE_VERSION-$env:SOTID_RELEASE_CHANNEL.dbg.zip" -Force
 }
 
 function MakeAppx {
     switch ($channel) {
         "stable" {
-            $manifestFile = "$env:ZED_WORKSPACE\crates\explorer_command_injector\AppxManifest.xml"
+            $manifestFile = "$env:SOTID_WORKSPACE\crates\explorer_command_injector\AppxManifest.xml"
         }
         "preview" {
-            $manifestFile = "$env:ZED_WORKSPACE\crates\explorer_command_injector\AppxManifest-Preview.xml"
+            $manifestFile = "$env:SOTID_WORKSPACE\crates\explorer_command_injector\AppxManifest-Preview.xml"
         }
         default {
-            $manifestFile = "$env:ZED_WORKSPACE\crates\explorer_command_injector\AppxManifest-Nightly.xml"
+            $manifestFile = "$env:SOTID_WORKSPACE\crates\explorer_command_injector\AppxManifest-Nightly.xml"
         }
     }
     Copy-Item -Path "$manifestFile" -Destination "$innoDir\make_appx\AppxManifest.xml"
     # Add makeAppx.exe to Path
     $sdk = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
     $env:Path += ';' + $sdk
-    makeAppx.exe pack /d "$innoDir\make_appx" /p "$innoDir\zed_explorer_command_injector.appx" /nv
-}
-
-function SignZedAndItsFriends {
-    if (-not $canCodeSign) {
-        return
-    }
-
-    $files = "$innoDir\Zed.exe,$innoDir\cli.exe,$innoDir\auto_update_helper.exe,$innoDir\zed_explorer_command_injector.dll,$innoDir\zed_explorer_command_injector.appx"
-    & "$innoDir\sign.ps1" $files
+    makeAppx.exe pack /d "$innoDir\make_appx" /p "$innoDir\sotid_explorer_command_injector.appx" /nv
 }
 
 function DownloadAMDGpuServices {
@@ -243,10 +218,10 @@ function DownloadConpty {
 }
 
 function CollectFiles {
-    Move-Item -Path "$innoDir\zed_explorer_command_injector.appx" -Destination "$innoDir\appx\zed_explorer_command_injector.appx" -Force
-    Move-Item -Path "$innoDir\zed_explorer_command_injector.dll" -Destination "$innoDir\appx\zed_explorer_command_injector.dll" -Force
-    Move-Item -Path "$innoDir\cli.exe" -Destination "$innoDir\bin\zed.exe" -Force
-    Move-Item -Path "$innoDir\zed.sh" -Destination "$innoDir\bin\zed" -Force
+    Move-Item -Path "$innoDir\sotid_explorer_command_injector.appx" -Destination "$innoDir\appx\sotid_explorer_command_injector.appx" -Force
+    Move-Item -Path "$innoDir\sotid_explorer_command_injector.dll" -Destination "$innoDir\appx\sotid_explorer_command_injector.dll" -Force
+    Move-Item -Path "$innoDir\cli.exe" -Destination "$innoDir\bin\sotid.exe" -Force
+    Move-Item -Path "$innoDir\sotid.sh" -Destination "$innoDir\bin\sotid" -Force
     Move-Item -Path "$innoDir\auto_update_helper.exe" -Destination "$innoDir\tools\auto_update_helper.exe" -Force
     if($Architecture -eq "aarch64") {
         New-Item -Type Directory -Path "$innoDir\arm64" -Force
@@ -264,63 +239,63 @@ function CollectFiles {
 }
 
 function BuildInstaller {
-    $issFilePath = "$innoDir\zed.iss"
+    $issFilePath = "$innoDir\sotid.iss"
     switch ($channel) {
         "stable" {
             $appId = "{{2DB0DA96-CA55-49BB-AF4F-64AF36A86712}"
             $appIconName = "app-icon"
-            $appName = "Zed"
-            $appDisplayName = "Zed"
-            $appSetupName = "Zed-$Architecture"
-            # The mutex name here should match the mutex name in crates\zed\src\zed\windows_only_instance.rs
-            $appMutex = "Zed-Stable-Instance-Mutex"
-            $appExeName = "Zed"
-            $regValueName = "Zed"
-            $appUserId = "ZedIndustries.Zed"
-            $appShellNameShort = "Z&ed"
-            $appAppxFullName = "ZedIndustries.Zed_1.0.0.0_neutral__japxn1gcva8rg"
+            $appName = "Sotid"
+            $appDisplayName = "Sotid"
+            $appSetupName = "Sotid-$Architecture"
+            # The mutex name here should match the mutex name in crates\sotid\src\sotid\windows_only_instance.rs
+            $appMutex = "Sotid-Stable-Instance-Mutex"
+            $appExeName = "Sotid"
+            $regValueName = "Sotid"
+            $appUserId = "Sotid.Sotid"
+            $appShellNameShort = "S&otid"
+            $appAppxFullName = "Sotid.Sotid_1.0.0.0_neutral__japxn1gcva8rg"
         }
         "preview" {
             $appId = "{{F70E4811-D0E2-4D88-AC99-D63752799F95}"
             $appIconName = "app-icon-preview"
-            $appName = "Zed Preview"
-            $appDisplayName = "Zed Preview"
-            $appSetupName = "Zed-$Architecture"
-            # The mutex name here should match the mutex name in crates\zed\src\zed\windows_only_instance.rs
-            $appMutex = "Zed-Preview-Instance-Mutex"
-            $appExeName = "Zed"
-            $regValueName = "ZedPreview"
-            $appUserId = "ZedIndustries.Zed.Preview"
-            $appShellNameShort = "Z&ed Preview"
-            $appAppxFullName = "ZedIndustries.Zed.Preview_1.0.0.0_neutral__japxn1gcva8rg"
+            $appName = "Sotid Preview"
+            $appDisplayName = "Sotid Preview"
+            $appSetupName = "Sotid-$Architecture"
+            # The mutex name here should match the mutex name in crates\sotid\src\sotid\windows_only_instance.rs
+            $appMutex = "Sotid-Preview-Instance-Mutex"
+            $appExeName = "Sotid"
+            $regValueName = "SotidPreview"
+            $appUserId = "Sotid.Sotid.Preview"
+            $appShellNameShort = "S&otid Preview"
+            $appAppxFullName = "Sotid.Sotid.Preview_1.0.0.0_neutral__japxn1gcva8rg"
         }
         "nightly" {
             $appId = "{{1BDB21D3-14E7-433C-843C-9C97382B2FE0}"
             $appIconName = "app-icon-nightly"
-            $appName = "Zed Nightly"
-            $appDisplayName = "Zed Nightly"
-            $appSetupName = "Zed-$Architecture"
-            # The mutex name here should match the mutex name in crates\zed\src\zed\windows_only_instance.rs
-            $appMutex = "Zed-Nightly-Instance-Mutex"
-            $appExeName = "Zed"
-            $regValueName = "ZedNightly"
-            $appUserId = "ZedIndustries.Zed.Nightly"
-            $appShellNameShort = "Z&ed Editor Nightly"
-            $appAppxFullName = "ZedIndustries.Zed.Nightly_1.0.0.0_neutral__japxn1gcva8rg"
+            $appName = "Sotid Nightly"
+            $appDisplayName = "Sotid Nightly"
+            $appSetupName = "Sotid-$Architecture"
+            # The mutex name here should match the mutex name in crates\sotid\src\sotid\windows_only_instance.rs
+            $appMutex = "Sotid-Nightly-Instance-Mutex"
+            $appExeName = "Sotid"
+            $regValueName = "SotidNightly"
+            $appUserId = "Sotid.Sotid.Nightly"
+            $appShellNameShort = "S&otid Editor Nightly"
+            $appAppxFullName = "Sotid.Sotid.Nightly_1.0.0.0_neutral__japxn1gcva8rg"
         }
         "dev" {
             $appId = "{{8357632E-24A4-4F32-BA97-E575B4D1FE5D}"
             $appIconName = "app-icon-dev"
-            $appName = "Zed Dev"
-            $appDisplayName = "Zed Dev"
-            $appSetupName = "Zed-$Architecture"
-            # The mutex name here should match the mutex name in crates\zed\src\zed\windows_only_instance.rs
-            $appMutex = "Zed-Dev-Instance-Mutex"
-            $appExeName = "Zed"
-            $regValueName = "ZedDev"
-            $appUserId = "ZedIndustries.Zed.Dev"
-            $appShellNameShort = "Z&ed Dev"
-            $appAppxFullName = "ZedIndustries.Zed.Dev_1.0.0.0_neutral__japxn1gcva8rg"
+            $appName = "Sotid Dev"
+            $appDisplayName = "Sotid Dev"
+            $appSetupName = "Sotid-$Architecture"
+            # The mutex name here should match the mutex name in crates\sotid\src\sotid\windows_only_instance.rs
+            $appMutex = "Sotid-Dev-Instance-Mutex"
+            $appExeName = "Sotid"
+            $regValueName = "SotidDev"
+            $appUserId = "Sotid.Sotid.Dev"
+            $appShellNameShort = "S&otid Dev"
+            $appAppxFullName = "Sotid.Sotid.Dev_1.0.0.0_neutral__japxn1gcva8rg"
         }
         default {
             Write-Error "can't bundle installer for $channel."
@@ -336,7 +311,7 @@ function BuildInstaller {
     $definitions = @{
         "AppId"          = $appId
         "AppIconName"    = $appIconName
-        "OutputDir"      = "$env:ZED_WORKSPACE\target"
+        "OutputDir"      = "$env:SOTID_WORKSPACE\target"
         "AppSetupName"   = $appSetupName
         "AppName"        = $appName
         "AppDisplayName" = $appDisplayName
@@ -347,7 +322,7 @@ function BuildInstaller {
         "ShellNameShort" = $appShellNameShort
         "AppUserId"      = $appUserId
         "Version"        = "$env:RELEASE_VERSION"
-        "SourceDir"      = "$env:ZED_WORKSPACE"
+        "SourceDir"      = "$env:SOTID_WORKSPACE"
         "AppxFullName"   = $appAppxFullName
     }
 
@@ -357,12 +332,6 @@ function BuildInstaller {
     }
 
     $innoArgs = @($issFilePath) + $defs
-    if($canCodeSign) {
-        # Checked by zed.iss to decide whether to sign the installer.
-        $env:ZED_SIGN_BUNDLE = "1"
-        $signTool = "powershell.exe -ExecutionPolicy Bypass -File $innoDir\sign.ps1 `$f"
-        $innoArgs += "/sDefaultsign=`"$signTool`""
-    }
 
     # Execute Inno Setup
     Write-Host "🚀 Running Inno Setup: $innoSetupPath $innoArgs"
@@ -379,33 +348,29 @@ function BuildInstaller {
     }
 }
 
-ParseZedWorkspace
-$innoDir = "$env:ZED_WORKSPACE\inno\$Architecture"
-$debugArchive = "$CargoOutDir\zed-$env:RELEASE_VERSION-$env:ZED_RELEASE_CHANNEL.dbg.zip"
-$debugStoreKey = "$env:ZED_RELEASE_CHANNEL/zed-$env:RELEASE_VERSION-$env:ZED_RELEASE_CHANNEL.dbg.zip"
+ParseSotidWorkspace
+$innoDir = "$env:SOTID_WORKSPACE\inno\$Architecture"
+$debugArchive = "$CargoOutDir\sotid-$env:RELEASE_VERSION-$env:SOTID_RELEASE_CHANNEL.dbg.zip"
+$debugStoreKey = "$env:SOTID_RELEASE_CHANNEL/sotid-$env:RELEASE_VERSION-$env:SOTID_RELEASE_CHANNEL.dbg.zip"
 
 CheckEnvironmentVariables
 PrepareForBundle
 GenerateLicenses
-BuildZedAndItsFriends
+BuildSotidAndItsFriends
 BuildRemoteServer
+BuildLinuxRemoteServers
 MakeAppx
-SignZedAndItsFriends
-ZipZedAndItsFriendsDebug
+ZipSotidAndItsFriendsDebug
 DownloadAMDGpuServices
 DownloadConpty
 CollectFiles
 BuildInstaller
 
-if($env:CI) {
-    UploadToSentry
-}
-
 if ($buildSuccess) {
     Write-Output "Build successful"
     if ($Install) {
-        Write-Output "Installing Zed..."
-        Start-Process -FilePath "$env:ZED_WORKSPACE/target/ZedEditorUserSetup-x64-$env:RELEASE_VERSION.exe"
+        Write-Output "Installing Sotid..."
+        Start-Process -FilePath "$env:SOTID_WORKSPACE/target/SotidEditorUserSetup-x64-$env:RELEASE_VERSION.exe"
     }
     exit 0
 }

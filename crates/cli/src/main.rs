@@ -22,8 +22,9 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
     process::ExitStatus,
-    sync::Arc,
+    sync::{Arc, mpsc},
     thread::{self, JoinHandle},
+    time::Duration,
 };
 use tempfile::{NamedTempFile, TempDir};
 use util::paths::PathWithPosition;
@@ -31,12 +32,18 @@ use walkdir::WalkDir;
 
 use std::io::IsTerminal;
 
-const URL_PREFIX: [&'static str; 5] = ["zed://", "http://", "https://", "file://", "ssh://"];
+const URL_PREFIX: [&'static str; 5] = ["sotid://", "http://", "https://", "file://", "ssh://"];
+
+/// How long to wait for the editor to connect back to the CLI's one-shot IPC
+/// server. The editor connects early in startup, before any window is shown,
+/// so 10s is generous even for a cold start on a slow machine. A timeout
+/// means the editor failed to start; `sotid --foreground` shows its logs.
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
 struct Detect;
 
 trait InstalledApp {
-    fn zed_version_string(&self) -> String;
+    fn sotid_version_string(&self) -> String;
     fn launch(&self, ipc_url: String, user_data_dir: Option<&str>) -> anyhow::Result<()>;
     fn run_foreground(
         &self,
@@ -48,21 +55,21 @@ trait InstalledApp {
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "zed",
+    name = "sotid",
     disable_version_flag = true,
-    before_help = "The Zed CLI binary.
-This CLI is a separate binary that invokes Zed.
+    before_help = "The Sotid CLI binary.
+This CLI is a separate binary that invokes Sotid.
 
 Examples:
-    `zed`
-          Simply opens Zed
-    `zed --foreground`
+    `sotid`
+          Simply opens Sotid
+    `sotid --foreground`
           Runs in foreground (shows all logs)
-    `zed path-to-your-project`
-          Open your project in Zed
-    `zed -n path-to-file `
+    `sotid path-to-your-project`
+          Open your project in Sotid
+    `sotid -n path-to-file `
           Open file/folder in a new window",
-    after_help = "To read from stdin, append '-', e.g. 'ps axf | zed -'"
+    after_help = "To read from stdin, append '-', e.g. 'ps axf | sotid -'"
 )]
 struct Args {
     /// Wait for all of the given paths to be opened/closed before exiting.
@@ -79,7 +86,7 @@ struct Args {
     /// Reuse an existing window, replacing its workspace
     #[arg(short, long, overrides_with_all = ["add", "new", "existing", "classic"], hide = true)]
     reuse: bool,
-    /// Open in existing Zed window
+    /// Open in existing Sotid window
     #[arg(short = 'e', long = "existing", overrides_with_all = ["add", "new", "reuse", "classic"])]
     existing: bool,
     /// Use the classic open behavior: new window for directories, reuse for files
@@ -87,33 +94,33 @@ struct Args {
     classic: bool,
     /// Sets a custom directory for all user data (e.g., database, extensions, logs).
     /// This overrides the default platform-specific data directory location:
-    #[cfg_attr(target_os = "macos", doc = "`~/Library/Application Support/Zed`.")]
-    #[cfg_attr(target_os = "windows", doc = "`%LOCALAPPDATA%\\Zed`.")]
+    #[cfg_attr(target_os = "macos", doc = "`~/Library/Application Support/Sotid`.")]
+    #[cfg_attr(target_os = "windows", doc = "`%LOCALAPPDATA%\\Sotid`.")]
     #[cfg_attr(
         not(any(target_os = "windows", target_os = "macos")),
-        doc = "`$XDG_DATA_HOME/zed`."
+        doc = "`$XDG_DATA_HOME/sotid`."
     )]
     #[arg(long, value_name = "DIR", value_hint = clap::ValueHint::DirPath)]
     user_data_dir: Option<String>,
-    /// The paths to open in Zed (space-separated).
+    /// The paths to open in Sotid (space-separated).
     ///
     /// Use `path:line:column` syntax to open a file at the given line and column.
     #[arg(trailing_var_arg = true, value_hint = clap::ValueHint::AnyPath)]
     paths_with_position: Vec<String>,
-    /// Print Zed's version and the app path.
+    /// Print Sotid's version and the app path.
     #[arg(short, long)]
     version: bool,
-    /// Run zed in the foreground (useful for debugging)
+    /// Run sotid in the foreground (useful for debugging)
     #[arg(long)]
     foreground: bool,
-    /// Custom path to Zed.app or the zed binary
+    /// Custom path to Sotid.app or the sotid binary
     #[arg(long)]
-    zed: Option<PathBuf>,
-    /// Run zed in dev-server mode
+    sotid: Option<PathBuf>,
+    /// Run sotid in dev-server mode
     #[arg(long)]
     dev_server_token: Option<String>,
     /// The username and WSL distribution to use when opening paths. If not specified,
-    /// Zed will attempt to open the paths directly.
+    /// Sotid will attempt to open the paths directly.
     ///
     /// The username is optional, and if not specified, the default user for the distribution
     /// will be used.
@@ -124,7 +131,7 @@ struct Args {
     #[cfg(target_os = "windows")]
     #[arg(long, value_name = "USER@DISTRO")]
     wsl: Option<String>,
-    /// Not supported in Zed CLI, only supported on Zed binary
+    /// Not supported in Sotid CLI, only supported on Sotid binary
     /// Will attempt to give the correct command to run
     #[arg(long)]
     system_specs: bool,
@@ -138,10 +145,10 @@ struct Args {
     /// When directories are provided, recurses into them and shows all changed files in a single multi-diff view.
     #[arg(long, action = clap::ArgAction::Append, num_args = 2, value_names = ["OLD_PATH", "NEW_PATH"], value_hint = clap::ValueHint::AnyPath)]
     diff: Vec<String>,
-    /// Generate shell completions for Zed
+    /// Generate shell completions for Sotid
     #[arg(long, value_names = ["SHELL"])]
     completions: Option<Shell>,
-    /// Uninstall Zed from user system
+    /// Uninstall Sotid from user system
     #[cfg(all(
         any(target_os = "linux", target_os = "macos"),
         not(feature = "no-bundled-uninstall")
@@ -150,7 +157,7 @@ struct Args {
     uninstall: bool,
 
     /// Used for SSH/Git password authentication, to remove the need for netcat as a dependency,
-    /// by having Zed act like netcat communicating over a Unix socket.
+    /// by having Sotid act like netcat communicating over a Unix socket.
     #[arg(long, hide = true)]
     askpass: Option<String>,
 }
@@ -161,7 +168,7 @@ struct Args {
 /// If a part of path doesn't exist, it will canonicalize the
 /// existing part and append the non-existing part.
 ///
-/// This method must return an absolute path, as many zed
+/// This method must return an absolute path, as many sotid
 /// crates assume absolute paths.
 fn parse_path_with_position(argument_str: &str) -> anyhow::Result<String> {
     match Path::new(argument_str).canonicalize() {
@@ -203,8 +210,8 @@ fn parse_path_with_position(argument_str: &str) -> anyhow::Result<String> {
 }
 
 /// Returns whether a `--diff` argument refers to an existing path, allowing a
-/// trailing `:line:column` suffix (parsed later by the Zed side, matching how
-/// regular `zed path:line:column` arguments are handled).
+/// trailing `:line:column` suffix (parsed later by the Sotid side, matching how
+/// regular `sotid path:line:column` arguments are handled).
 fn diff_path_exists(diff_path: &str) -> bool {
     Path::new(diff_path).exists() || PathWithPosition::parse_str(diff_path).path.exists()
 }
@@ -505,14 +512,14 @@ fn run() -> Result<()> {
 
     // Must happen before clap — SSH invokes cli.exe directly as SSH_ASKPASS
     // and passes the socket path via env var to avoid argument parsing.
-    if let Ok(socket) = std::env::var("ZED_ASKPASS_SOCKET") {
+    if let Ok(socket) = std::env::var("SOTID_ASKPASS_SOCKET") {
         askpass::main_from_args(&socket, std::env::args().skip(1));
         return Ok(());
     }
 
     let args = Args::parse();
 
-    // `zed --askpass` Makes zed operate in nc/netcat mode for use with askpass
+    // `sotid --askpass` Makes sotid operate in nc/netcat mode for use with askpass
     if let Some(socket) = &args.askpass {
         askpass::main(socket);
         return Ok(());
@@ -527,7 +534,7 @@ fn run() -> Result<()> {
     #[cfg(target_os = "linux")]
     let args = flatpak::set_bin_if_no_escape(args);
 
-    let app = Detect::detect(args.zed.as_deref()).context("Bundle detection")?;
+    let app = Detect::detect(args.sotid.as_deref()).context("Bundle detection")?;
 
     if let Some(shell) = &args.completions {
         let file_path = std::env::current_exe()?;
@@ -544,14 +551,14 @@ fn run() -> Result<()> {
     }
 
     if args.version {
-        println!("{}", app.zed_version_string());
+        println!("{}", app.sotid_version_string());
         return Ok(());
     }
 
     if args.system_specs {
         let path = app.path();
         let msg = [
-            "The `--system-specs` argument is not supported in the Zed CLI, only on Zed binary.",
+            "The `--system-specs` argument is not supported in the Sotid CLI, only on Sotid binary.",
             "To retrieve the system specs on the command line, run the following command:",
             &format!("{} --system-specs", path.display()),
         ];
@@ -574,7 +581,7 @@ fn run() -> Result<()> {
 
         let status = std::process::Command::new("sh")
             .arg(&script_path)
-            .env("ZED_CHANNEL", &*release_channel::RELEASE_CHANNEL_NAME)
+            .env("SOTID_CHANNEL", &*release_channel::RELEASE_CHANNEL_NAME)
             .status()
             .context("Failed to execute uninstall script")?;
 
@@ -582,8 +589,8 @@ fn run() -> Result<()> {
     }
 
     let (server, server_name) =
-        IpcOneShotServer::<IpcHandshake>::new().context("Handshake before Zed spawn")?;
-    let url = format!("zed-cli://{server_name}");
+        IpcOneShotServer::<IpcHandshake>::new().context("Handshake before Sotid spawn")?;
+    let url = format!("sotid-cli://{server_name}");
 
     let open_behavior = if args.new {
         cli::OpenBehavior::AlwaysNew
@@ -604,7 +611,7 @@ fn run() -> Result<()> {
         {
             use collections::HashMap;
 
-            // On Linux, the desktop entry uses `cli` to spawn `zed`.
+            // On Linux, the desktop entry uses `cli` to spawn `sotid`.
             // We need to handle env vars correctly since std::env::vars() may not contain
             // project-specific vars (e.g. those set by direnv).
             // By setting env to None here, the LSP will use worktree env vars instead,
@@ -659,7 +666,7 @@ fn run() -> Result<()> {
     let (expanded_diff_paths, temp_dirs) = expand_directory_diff_pairs(diff_paths)?;
     diff_paths = expanded_diff_paths;
     // Prevent automatic cleanup of temp directories containing empty stub files
-    // for directory diffs. The CLI process may exit before Zed has read these
+    // for directory diffs. The CLI process may exit before Sotid has read these
     // files (e.g., when RPC-ing into an already-running instance). The files
     // live in the OS temp directory and will be cleaned up on reboot.
     for temp_dir in temp_dirs {
@@ -693,7 +700,7 @@ fn run() -> Result<()> {
 
     anyhow::ensure!(
         args.dev_server_token.is_none(),
-        "Dev servers were removed in v0.157.x please upgrade to SSH remoting: https://zed.dev/docs/remote-development"
+        "Dev servers were removed in v0.157.x please upgrade to SSH remoting: https://sotid.dev/docs/remote-development"
     );
 
     rayon::ThreadPoolBuilder::new()
@@ -703,13 +710,16 @@ fn run() -> Result<()> {
         .build_global()
         .unwrap();
 
+    let (handshake_tx, handshake_rx) = mpsc::channel();
     let sender: JoinHandle<anyhow::Result<()>> = thread::Builder::new()
         .name("CliReceiver".to_string())
         .spawn({
             let exit_status = exit_status.clone();
             let user_data_dir_for_thread = user_data_dir.clone();
             move || {
-                let (_, handshake) = server.accept().context("Handshake after Zed spawn")?;
+                let (_, handshake) = server.accept().context("Handshake after Sotid spawn")?;
+                // The main thread may have already timed out and exited; that is fine.
+                let _ = handshake_tx.send(());
                 let (tx, rx) = (handshake.requests, handshake.responses);
 
                 #[cfg(target_os = "windows")]
@@ -783,6 +793,13 @@ fn run() -> Result<()> {
         app.run_foreground(url, user_data_dir.as_deref())?;
     } else {
         app.launch(url, user_data_dir.as_deref())?;
+        if let Err(mpsc::RecvTimeoutError::Timeout) = handshake_rx.recv_timeout(HANDSHAKE_TIMEOUT) {
+            eprintln!(
+                "error: Sotid did not connect within {}s. Try 'sotid --foreground' to see logs.",
+                HANDSHAKE_TIMEOUT.as_secs()
+            );
+            std::process::exit(1);
+        }
         sender.join().unwrap()?;
         if let Some(handle) = stdin_pipe_handle {
             handle.join().unwrap()?;
@@ -841,7 +858,7 @@ fn anonymous_fd(path: &str) -> Option<fs::File> {
 }
 
 /// Shows an interactive prompt asking the user to choose the default open
-/// behavior for `zed <path>`. Returns `None` if the prompt cannot be shown
+/// behavior for `sotid <path>`. Returns `None` if the prompt cannot be shown
 /// (e.g. stdin is not a terminal) or the user cancels.
 fn prompt_open_behavior() -> Option<cli::CliBehaviorSetting> {
     if !std::io::stdin().is_terminal() {
@@ -851,16 +868,16 @@ fn prompt_open_behavior() -> Option<cli::CliBehaviorSetting> {
     let blue = console::Style::new().blue();
     let items = [
         format!(
-            "Add to existing Zed window ({})",
-            blue.apply_to("zed --existing")
+            "Add to existing Sotid window ({})",
+            blue.apply_to("sotid --existing")
         ),
-        format!("Open a new window ({})", blue.apply_to("zed --classic")),
+        format!("Open a new window ({})", blue.apply_to("sotid --classic")),
     ];
 
     let prompt = format!(
         "Configure default behavior for {}\n{}",
-        blue.apply_to("zed <path>"),
-        console::style("You can change this later in Zed settings"),
+        blue.apply_to("sotid <path>"),
+        console::style("You can change this later in Sotid settings"),
     );
 
     let selection = dialoguer::Select::new()
@@ -906,10 +923,10 @@ mod linux {
                 let cli = env::current_exe()?;
                 let dir = cli.parent().context("no parent path for cli")?;
 
-                // libexec is the standard, lib/zed is for Arch (and other non-libexec distros),
-                // ./zed is for the target directory in development builds.
+                // libexec is the standard, lib/sotid is for Arch (and other non-libexec distros),
+                // ./sotid is for the target directory in development builds.
                 let possible_locations =
-                    ["../libexec/zed-editor", "../lib/zed/zed-editor", "./zed"];
+                    ["../libexec/sotid-editor", "../lib/sotid/sotid-editor", "./sotid"];
                 possible_locations
                     .iter()
                     .find_map(|p| dir.join(p).canonicalize().ok().filter(|path| path != &cli))
@@ -923,16 +940,16 @@ mod linux {
     }
 
     impl InstalledApp for App {
-        fn zed_version_string(&self) -> String {
+        fn sotid_version_string(&self) -> String {
             format!(
-                "Zed {}{}{} – {}",
+                "Sotid {}{}{} – {}",
                 if *release_channel::RELEASE_CHANNEL_NAME == "stable" {
                     "".to_string()
                 } else {
                     format!("{} ", *release_channel::RELEASE_CHANNEL_NAME)
                 },
                 option_env!("RELEASE_VERSION").unwrap_or_default(),
-                match option_env!("ZED_COMMIT_SHA") {
+                match option_env!("SOTID_COMMIT_SHA") {
                     Some(commit_sha) => format!(" {commit_sha} "),
                     None => "".to_string(),
                 },
@@ -946,7 +963,7 @@ mod linux {
                 .unwrap_or_else(|| paths::data_dir().clone());
 
             let sock_path = data_dir.join(format!(
-                "zed-{}.sock",
+                "sotid-{}.sock",
                 *release_channel::RELEASE_CHANNEL_NAME
             ));
             let sock = UnixDatagram::unbound()?;
@@ -1033,16 +1050,16 @@ mod flatpak {
     use std::process::Command;
     use std::{env, process};
 
-    const EXTRA_LIB_ENV_NAME: &str = "ZED_FLATPAK_LIB_PATH";
-    const NO_ESCAPE_ENV_NAME: &str = "ZED_FLATPAK_NO_ESCAPE";
+    const EXTRA_LIB_ENV_NAME: &str = "SOTID_FLATPAK_LIB_PATH";
+    const NO_ESCAPE_ENV_NAME: &str = "SOTID_FLATPAK_NO_ESCAPE";
 
     fn restart_cli_args(flatpak_dir: &Path, invocation_args: &[OsString]) -> Vec<OsString> {
         let mut args = Vec::with_capacity(invocation_args.len() + 2);
 
-        if !invocation_args.iter().any(|arg| arg == "--zed") {
+        if !invocation_args.iter().any(|arg| arg == "--sotid") {
             // Positional paths consume all following arguments, so launcher options must precede them.
-            args.push("--zed".into());
-            args.push(flatpak_dir.join("libexec").join("zed-editor").into());
+            args.push("--sotid".into());
+            args.push(flatpak_dir.join("libexec").join("sotid-editor").into());
         }
 
         args.extend_from_slice(invocation_args);
@@ -1069,7 +1086,7 @@ mod flatpak {
         if let Some(flatpak_dir) = get_flatpak_dir() {
             let mut args = vec!["/usr/bin/flatpak-spawn".into(), "--host".into()];
             args.append(&mut get_xdg_env_args());
-            args.push("--env=ZED_UPDATE_EXPLANATION=Please use flatpak to update zed".into());
+            args.push("--env=SOTID_UPDATE_EXPLANATION=Please use flatpak to update sotid".into());
             args.push(
                 format!(
                     "--env={EXTRA_LIB_ENV_NAME}={}",
@@ -1077,7 +1094,7 @@ mod flatpak {
                 )
                 .into(),
             );
-            args.push(flatpak_dir.join("bin").join("zed").into());
+            args.push(flatpak_dir.join("bin").join("sotid").into());
 
             let invocation_args = env::args_os().skip(1).collect::<Vec<_>>();
             args.extend(restart_cli_args(&flatpak_dir, &invocation_args));
@@ -1090,11 +1107,11 @@ mod flatpak {
 
     pub fn set_bin_if_no_escape(mut args: super::Args) -> super::Args {
         if env::var(NO_ESCAPE_ENV_NAME).is_ok()
-            && env::var("FLATPAK_ID").is_ok_and(|id| id.starts_with("dev.zed.Zed"))
-            && args.zed.is_none()
+            && env::var("FLATPAK_ID").is_ok_and(|id| id.starts_with("de.sorcarion.Sotid"))
+            && args.sotid.is_none()
         {
-            args.zed = Some("/app/libexec/zed-editor".into());
-            unsafe { env::set_var("ZED_UPDATE_EXPLANATION", "Please use flatpak to update zed") };
+            args.sotid = Some("/app/libexec/sotid-editor".into());
+            unsafe { env::set_var("SOTID_UPDATE_EXPLANATION", "Please use flatpak to update sotid") };
         }
         args
     }
@@ -1105,7 +1122,7 @@ mod flatpak {
         }
 
         if let Ok(flatpak_id) = env::var("FLATPAK_ID") {
-            if !flatpak_id.starts_with("dev.zed.Zed") {
+            if !flatpak_id.starts_with("de.sorcarion.Sotid") {
                 return None;
             }
 
@@ -1148,13 +1165,13 @@ mod flatpak {
             let flatpak_dir = Path::new("/flatpak");
             let args = restart_cli_args(flatpak_dir, &["project".into()]);
             let parsed =
-                crate::Args::try_parse_from(std::iter::once(OsString::from("zed")).chain(args))
+                crate::Args::try_parse_from(std::iter::once(OsString::from("sotid")).chain(args))
                     .unwrap();
 
-            assert_eq!(parsed.zed, Some(flatpak_dir.join("libexec/zed-editor")));
+            assert_eq!(parsed.sotid, Some(flatpak_dir.join("libexec/sotid-editor")));
             assert_eq!(parsed.paths_with_position, ["project"]);
 
-            let invocation_args = ["--zed".into(), "/custom/zed-editor".into()];
+            let invocation_args = ["--sotid".into(), "/custom/sotid-editor".into()];
             assert_eq!(
                 restart_cli_args(flatpak_dir, &invocation_args),
                 invocation_args
@@ -1200,16 +1217,16 @@ mod windows {
     struct App(PathBuf);
 
     impl InstalledApp for App {
-        fn zed_version_string(&self) -> String {
+        fn sotid_version_string(&self) -> String {
             format!(
-                "Zed {}{}{} – {}",
+                "Sotid {}{}{} – {}",
                 if *release_channel::RELEASE_CHANNEL_NAME == "stable" {
                     "".to_string()
                 } else {
                     format!("{} ", *release_channel::RELEASE_CHANNEL_NAME)
                 },
                 option_env!("RELEASE_VERSION").unwrap_or_default(),
-                match option_env!("ZED_COMMIT_SHA") {
+                match option_env!("SOTID_COMMIT_SHA") {
                     Some(commit_sha) => format!(" {commit_sha} "),
                     None => "".to_string(),
                 },
@@ -1274,9 +1291,9 @@ mod windows {
                 let cli = std::env::current_exe()?;
                 let dir = cli.parent().context("no parent path for cli")?;
 
-                // ../Zed.exe is the standard, lib/zed is for MSYS2, ./zed.exe is for the target
+                // ../Sotid.exe is the standard, lib/sotid is for MSYS2, ./sotid.exe is for the target
                 // directory in development builds.
-                let possible_locations = ["../Zed.exe", "../lib/zed/zed-editor.exe", "./zed.exe"];
+                let possible_locations = ["../Sotid.exe", "../lib/sotid/sotid-editor.exe", "./sotid.exe"];
                 possible_locations
                     .iter()
                     .find_map(|p| dir.join(p).canonicalize().ok().filter(|path| path != &cli))
@@ -1374,8 +1391,8 @@ mod mac_os {
     }
 
     impl InstalledApp for Bundle {
-        fn zed_version_string(&self) -> String {
-            format!("Zed {} – {}", self.version(), self.path().display(),)
+        fn sotid_version_string(&self) -> String {
+            format!("Sotid {} – {}", self.version(), self.path().display(),)
         }
 
         fn launch(&self, url: String, user_data_dir: Option<&str>) -> anyhow::Result<()> {
@@ -1393,7 +1410,7 @@ mod mac_os {
                             kCFStringEncodingUTF8,
                             ptr::null(),
                         ));
-                        // equivalent to: open zed-cli:... -a /Applications/Zed\ Preview.app
+                        // equivalent to: open sotid-cli:... -a /Applications/Sotid\ Preview.app
                         let urls_to_open =
                             CFArray::from_copyable(&[url_to_open.as_concrete_TypeRef()]);
                         LSOpenFromURLSpec(
@@ -1411,7 +1428,7 @@ mod mac_os {
                     anyhow::ensure!(
                         status == 0,
                         "cannot start app bundle {}",
-                        self.zed_version_string()
+                        self.sotid_version_string()
                     );
                 }
 
@@ -1420,7 +1437,7 @@ mod mac_os {
                         .parent()
                         .with_context(|| format!("Executable {executable:?} path has no parent"))?;
                     let subprocess_stdout_file = fs::File::create(
-                        executable_parent.join("zed_dev.log"),
+                        executable_parent.join("sotid_dev.log"),
                     )
                     .with_context(|| format!("Log file creation in {executable_parent:?}"))?;
                     let subprocess_stdin_file =
@@ -1452,7 +1469,7 @@ mod mac_os {
             user_data_dir: Option<&str>,
         ) -> io::Result<ExitStatus> {
             let path = match self {
-                Bundle::App { app_bundle, .. } => app_bundle.join("Contents/MacOS/zed"),
+                Bundle::App { app_bundle, .. } => app_bundle.join("Contents/MacOS/sotid"),
                 Bundle::LocalPath { executable, .. } => executable.clone(),
             };
 
@@ -1466,7 +1483,7 @@ mod mac_os {
 
         fn path(&self) -> PathBuf {
             match self {
-                Bundle::App { app_bundle, .. } => app_bundle.join("Contents/MacOS/zed"),
+                Bundle::App { app_bundle, .. } => app_bundle.join("Contents/MacOS/sotid"),
                 Bundle::LocalPath { executable, .. } => executable.clone(),
             }
         }

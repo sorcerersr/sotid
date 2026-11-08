@@ -9,9 +9,9 @@ use std::sync::Arc;
 use ::fs::{Fs, RealFs, RemoveOptions};
 use anyhow::{Context as _, Result, anyhow, bail};
 use clap::Parser;
-use cloud_api_types::ExtensionProvides;
 use extension::build_debug_adapter_schema_path;
 use extension::extension_builder::CompilationConcurrency;
+use extension::ExtensionProvides;
 use extension::extension_builder::{CompileExtensionOptions, ExtensionBuilder};
 use extension::{ExtensionManifest, ExtensionSnippets, copy_extension_resources};
 use http_client::Url;
@@ -160,17 +160,16 @@ async fn main() -> Result<()> {
         );
     }
 
-    let manifest_json = serde_json::to_string(&cloud_api_types::ExtensionApiManifest {
+    let manifest_json = serde_json::to_string(&extension::ExtensionApiManifest {
+        id: manifest.id.to_string(),
         name: manifest.name,
         version: manifest.version,
         description: manifest.description,
         authors: manifest.authors,
-        schema_version: Some(manifest.schema_version.0),
-        repository: manifest
-            .repository
-            .context("missing repository in extension manifest")?,
+        schema_version: Some(manifest.schema_version.0 as u32),
+        repository: manifest.repository,
         wasm_api_version: manifest.lib.version.map(|version| version.to_string()),
-        provides: extension_provides,
+        provides: extension_provides.into_iter().collect(),
     })?;
     fs.remove_dir(
         &archive_dir,
@@ -534,7 +533,7 @@ async fn test_debug_adapter_schemas(
 mod tests {
     use std::collections::BTreeMap;
 
-    use cloud_api_types::ExtensionProvides;
+    use extension::ExtensionProvides;
     use extension::{LanguageModelProviderManifestEntry, SchemaVersion};
 
     use super::*;
@@ -554,7 +553,6 @@ mod tests {
             languages: Vec::new(),
             grammars: BTreeMap::default(),
             language_servers: BTreeMap::default(),
-            context_servers: BTreeMap::default(),
             slash_commands: BTreeMap::default(),
             snippets: None,
             capabilities: Vec::new(),

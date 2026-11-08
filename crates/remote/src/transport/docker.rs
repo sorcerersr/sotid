@@ -225,7 +225,7 @@ impl DockerExecConnection {
             _ => version.to_string(),
         };
         let binary_name = format!(
-            "zed-remote-server-{}-{}",
+            "sotid-remote-server-{}-{}",
             release_channel.dev_name(),
             version_str
         );
@@ -241,110 +241,45 @@ impl DockerExecConnection {
             )
             .await
             .is_ok();
-        #[cfg(any(debug_assertions, feature = "build-remote-server-binary"))]
-        if let Some(remote_server_path) = super::build_remote_server_from_source(
-            &remote_platform,
-            delegate.as_ref(),
-            binary_exists_on_server,
-            cx,
-        )
-        .await?
-        {
-            let tmp_path = paths::remote_server_dir_relative().join(
-                RelPath::from_unix_str(&format!(
-                    "download-{}-{}",
-                    std::process::id(),
-                    remote_server_path.file_name().unwrap().to_string_lossy()
-                ))
-                .unwrap(),
-            );
-            self.upload_local_server_binary(
-                &remote_server_path,
-                &tmp_path,
-                &remote_dir_for_server,
-                delegate,
-                cx,
-            )
-            .await?;
-            self.extract_server_binary(&dst_path, &tmp_path, &remote_dir_for_server, delegate, cx)
-                .await?;
-            return Ok(dst_path.into());
-        }
 
         if binary_exists_on_server {
             return Ok(dst_path.into());
         }
 
-        let wanted_version = cx.update(|cx| match release_channel {
-            ReleaseChannel::Nightly => Ok(None),
-            ReleaseChannel::Dev => {
-                anyhow::bail!(
-                    "ZED_BUILD_REMOTE_SERVER is not set and no remote server exists at ({:?})",
-                    dst_path
-                )
-            }
-            _ => Ok(Some(AppVersion::global(cx))),
-        })?;
+        let Some(remote_server_path) = super::build_remote_server_from_source(
+            &remote_platform,
+            delegate.as_ref(),
+            cx,
+        )
+        .await?
+        else {
+            anyhow::bail!(
+                "No remote server binary for {} is available: this installation ships no bundled \
+                 binary for that platform and SOTID_BUILD_REMOTE_SERVER is disabled. \n\
+                 Building from source requires a Sotid checkout; to use a prebuilt binary, set \
+                 SOTID_COPY_REMOTE_SERVER to its path.",
+                remote_platform.os
+            );
+        };
 
-        let tmp_path_gz = paths::remote_server_dir_relative().join(
+        let tmp_path = paths::remote_server_dir_relative().join(
             RelPath::from_unix_str(&format!(
-                "{}-download-{}.gz",
-                binary_name,
-                std::process::id()
+                "build-{}-{}",
+                std::process::id(),
+                remote_server_path.file_name().unwrap().to_string_lossy()
             ))
             .unwrap(),
         );
-        if !self.connection_options.upload_binary_over_docker_exec
-            && let Some(url) = delegate
-                .get_download_url(remote_platform, release_channel, wanted_version.clone(), cx)
-                .await?
-        {
-            match self
-                .download_binary_on_server(&url, &tmp_path_gz, &remote_dir_for_server, delegate, cx)
-                .await
-            {
-                Ok(_) => {
-                    self.extract_server_binary(
-                        &dst_path,
-                        &tmp_path_gz,
-                        &remote_dir_for_server,
-                        delegate,
-                        cx,
-                    )
-                    .await
-                    .context("extracting server binary")?;
-                    return Ok(dst_path.into());
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to download binary on server, attempting to download locally and then upload it the server: {e:#}",
-                    )
-                }
-            }
-        }
-
-        let src_path = delegate
-            .download_server_binary_locally(remote_platform, release_channel, wanted_version, cx)
-            .await
-            .context("downloading server binary locally")?;
         self.upload_local_server_binary(
-            &src_path,
-            &tmp_path_gz,
+            &remote_server_path,
+            &tmp_path,
             &remote_dir_for_server,
             delegate,
             cx,
         )
-        .await
-        .context("uploading server binary")?;
-        self.extract_server_binary(
-            &dst_path,
-            &tmp_path_gz,
-            &remote_dir_for_server,
-            delegate,
-            cx,
-        )
-        .await
-        .context("extracting server binary")?;
+        .await?;
+        self.extract_server_binary(&dst_path, &tmp_path, &remote_dir_for_server, delegate, cx)
+            .await?;
         Ok(dst_path.into())
     }
 
@@ -567,79 +502,6 @@ impl DockerExecConnection {
     ) -> Result<String> {
         let args = self.docker_exec_arguments(inner_program, working_directory, env, program_args);
         self.run_docker_command("exec", args.as_ref()).await
-    }
-
-    async fn download_binary_on_server(
-        &self,
-        url: &str,
-        tmp_path_gz: &RelPath,
-        remote_dir_for_server: &str,
-        delegate: &Arc<dyn RemoteClientDelegate>,
-        cx: &mut AsyncApp,
-    ) -> Result<()> {
-        if let Some(parent) = tmp_path_gz.parent() {
-            self.run_docker_exec(
-                "mkdir",
-                Some(remote_dir_for_server),
-                &Default::default(),
-                &["-p", parent.display(self.path_style()).as_ref()],
-            )
-            .await?;
-        }
-
-        delegate.set_status(Some("Downloading remote development server on host"), cx);
-
-        match self
-            .run_docker_exec(
-                "curl",
-                Some(remote_dir_for_server),
-                &Default::default(),
-                &[
-                    "-f",
-                    "-L",
-                    url,
-                    "-o",
-                    &tmp_path_gz.display(self.path_style()),
-                ],
-            )
-            .await
-        {
-            Ok(_) => {}
-            Err(e) => {
-                if self
-                    .run_docker_exec("which", None, &Default::default(), &["curl"])
-                    .await
-                    .is_ok()
-                {
-                    return Err(e);
-                }
-
-                log::info!("curl is not available, trying wget");
-                match self
-                    .run_docker_exec(
-                        "wget",
-                        Some(remote_dir_for_server),
-                        &Default::default(),
-                        &[url, "-O", &tmp_path_gz.display(self.path_style())],
-                    )
-                    .await
-                {
-                    Ok(_) => {}
-                    Err(e) => {
-                        if self
-                            .run_docker_exec("which", None, &Default::default(), &["wget"])
-                            .await
-                            .is_ok()
-                        {
-                            return Err(e);
-                        } else {
-                            anyhow::bail!("Neither curl nor wget is available");
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
     }
 
     fn kill_inner(&self) -> Result<()> {
@@ -1060,13 +922,13 @@ mod tests {
                 connection.docker_cli(),
                 "exec",
                 &args,
-                "sh: 1: /usr/local/cargo/bin/zed-remote-server: not found\nGH_TOKEN=ghp_supersecret run",
+                "sh: 1: /usr/local/cargo/bin/sotid-remote-server: not found\nGH_TOKEN=ghp_supersecret run",
             ),
             concat!(
                 "failed to run command \"docker\" \"exec\" \"-u\" \"user\"",
                 " \"-e\" \"API_KEY=<redacted>\" \"-e\" \"COMMAND_SECRET=<redacted>\"",
                 " \"container_id\" \"sh\" \"-c\" \"echo hi\"",
-                ": sh: 1: /usr/local/cargo/bin/zed-remote-server: not found\nGH_TOKEN=\"[REDACTED]\" run"
+                ": sh: 1: /usr/local/cargo/bin/sotid-remote-server: not found\nGH_TOKEN=\"[REDACTED]\" run"
             )
         );
     }

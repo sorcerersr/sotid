@@ -9,7 +9,7 @@ use anyhow::{Context as _, Result};
 use buffer_diff::DiffHunkSecondaryStatus;
 use editor::{
     DefaultDiffHunkRenderer, Editor, EditorEvent, SplittableEditor,
-    actions::{GoToHunk, GoToPreviousHunk, SendReviewToAgent},
+    actions::{GoToHunk, GoToPreviousHunk},
 };
 use git::{Commit, StageAll, StageAndNext, ToggleStaged, UnstageAll, UnstageAndNext};
 use gpui::{
@@ -37,7 +37,7 @@ use workspace::{
     item::{Item, ItemEvent, ItemHandle, SaveOptions},
     searchable::SearchableItemHandle,
 };
-use zed_actions::git as git_actions;
+use sotid_actions::git as git_actions;
 
 actions!(
     git,
@@ -52,8 +52,6 @@ actions!(
         ToggleDiffBase,
         /// Adds files to the git staging area.
         Add,
-        /// Opens a new agent thread with the branch diff for review.
-        ReviewDiff,
         LeaderAndFollower,
         /// Compare with a specific branch
         CompareWithBranch,
@@ -134,14 +132,6 @@ impl ProjectDiff {
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
-        telemetry::event!(
-            "Git Diff Opened",
-            source = if entry.is_some() {
-                "Git Panel"
-            } else {
-                "Action"
-            }
-        );
         let intended_repo = workspace.project().read(cx).active_repository(cx);
 
         let existing = workspace.items_of_type::<Self>(cx).next();
@@ -191,7 +181,6 @@ impl ProjectDiff {
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
-        telemetry::event!("Git Diff Opened", source = "Agent Panel");
         let existing = workspace.items_of_type::<Self>(cx).next();
         let project_diff = if let Some(existing) = existing {
             workspace.activate_item(&existing, true, true, window, cx);
@@ -326,11 +315,6 @@ impl ProjectDiff {
         self.diff.read(cx).calculate_changed_lines(cx)
     }
 
-    /// Returns the total count of review comments across all hunks/files.
-    pub fn total_review_comment_count(&self, cx: &App) -> usize {
-        self.diff.read(cx).total_review_comment_count()
-    }
-
     /// Returns the splittable editor of the currently-shown diff view.
     pub fn editor(&self, cx: &App) -> Entity<SplittableEditor> {
         self.diff.read(cx).editor().clone()
@@ -450,9 +434,6 @@ impl Item for ProjectDiff {
         "Uncommitted Changes".into()
     }
 
-    fn telemetry_event_text(&self) -> Option<&'static str> {
-        Some("Project Diff Opened")
-    }
 
     fn as_searchable(&self, _: &Entity<Self>, cx: &App) -> Option<Box<dyn SearchableItemHandle>> {
         Some(Box::new(self.diff.read(cx).editor().clone()))
@@ -816,7 +797,6 @@ impl Render for ProjectDiffToolbar {
         };
         let focus_handle = project_diff.focus_handle(cx);
         let button_states = project_diff.read(cx).button_states(cx);
-        let review_count = project_diff.read(cx).total_review_comment_count(cx);
 
         let (additions, deletions) = project_diff.read(cx).calculate_changed_lines(cx);
         let is_multibuffer_empty = project_diff.read(cx).multibuffer(cx).read(cx).is_empty();
@@ -960,36 +940,7 @@ impl Render for ProjectDiffToolbar {
                         this.dispatch_action(&Commit, window, cx);
                     })),
             )
-            .when(review_count > 0, |el| {
-                el.child(Divider::vertical()).child(
-                    render_send_review_to_agent_button(review_count, &focus_handle).on_click(
-                        cx.listener(|this, _, window, cx| {
-                            this.dispatch_action(&SendReviewToAgent, window, cx)
-                        }),
-                    ),
-                )
-            })
     }
-}
-
-pub(crate) fn render_send_review_to_agent_button(
-    review_count: usize,
-    focus_handle: &FocusHandle,
-) -> Button {
-    Button::new(
-        "send-review",
-        format!("Send Review to Agent ({})", review_count),
-    )
-    .start_icon(
-        Icon::new(IconName::ZedAssistant)
-            .size(IconSize::Small)
-            .color(Color::Muted),
-    )
-    .tooltip(Tooltip::for_action_title_in(
-        "Send all review comments to the Agent panel",
-        &SendReviewToAgent,
-        focus_handle,
-    ))
 }
 
 #[cfg(test)]
@@ -1030,7 +981,7 @@ mod tests {
         });
     }
 
-    use zed_actions::git as git_actions;
+    use sotid_actions::git as git_actions;
 
     use crate::branch_diff::BranchDiff;
     use crate::project_diff::{self, ProjectDiff};

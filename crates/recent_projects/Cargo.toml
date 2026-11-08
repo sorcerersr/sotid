@@ -43,12 +43,11 @@ remote_connection.workspace = true
 semver.workspace = true
 serde_json.workspace = true
 settings.workspace = true
-telemetry.workspace = true
 ui.workspace = true
 util.workspace = true
 workspace.workspace = true
 worktree.workspace = true
-zed_actions.workspace = true
+sotid_actions.workspace = true
 indoc.workspace = true
 
 [target.'cfg(target_os = "windows")'.dependencies]

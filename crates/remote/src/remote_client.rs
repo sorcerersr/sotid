@@ -36,7 +36,6 @@ use rpc::{
     AnyProtoClient, ErrorExt, ProtoClient, ProtoMessageHandlerSet, RpcError,
     proto::{self, Envelope, EnvelopedMessage, PeerId, RequestMessage, build_typed_envelope},
 };
-use semver::Version;
 use std::{
     collections::VecDeque,
     fmt,
@@ -73,8 +72,7 @@ impl RemoteOs {
         matches!(self, RemoteOs::Windows)
     }
 
-    /// A human-readable OS name for telemetry. Matches `client::telemetry::os_name`
-    /// ignoring the compositor (as we run headless on remotes).
+    /// A human-readable OS name for telemetry, ignoring the compositor (as we run headless on remotes).
     pub fn display_name(&self) -> &'static str {
         match self {
             RemoteOs::Linux => "Linux",
@@ -141,20 +139,6 @@ pub trait RemoteClientDelegate: Send + Sync {
         cancellation: oneshot::Receiver<()>,
         cx: &mut AsyncApp,
     );
-    fn get_download_url(
-        &self,
-        platform: RemotePlatform,
-        release_channel: ReleaseChannel,
-        version: Option<Version>,
-        cx: &mut AsyncApp,
-    ) -> Task<Result<Option<String>>>;
-    fn download_server_binary_locally(
-        &self,
-        platform: RemotePlatform,
-        release_channel: ReleaseChannel,
-        version: Option<Version>,
-        cx: &mut AsyncApp,
-    ) -> Task<Result<PathBuf>>;
     fn set_status(&self, status: Option<&str>, cx: &mut AsyncApp);
 }
 
@@ -439,7 +423,6 @@ impl RemoteClient {
                 let platform = remote_connection.remote_platform();
                 let os_version = remote_connection.remote_os_version();
                 let connection_options = remote_connection.connection_options();
-                let connection_type = connection_options.connection_type();
                 let this = cx.new(|_| Self {
                     client: client.clone(),
                     unique_identifier: unique_identifier.clone(),
@@ -516,16 +499,7 @@ impl RemoteClient {
                 });
 
                 // Use the same `remote_*` property schema as the forwarded
-                // remote events (see `client::telemetry::report_remote_event`)
-                // so all remote-origin telemetry can be queried uniformly.
-                telemetry::event!(
-                    "Remote Connection Established",
-                    remote = true,
-                    remote_connection_type = connection_type,
-                    remote_os_name = platform.os.display_name(),
-                    remote_os_version = os_version,
-                    remote_architecture = platform.arch.as_str(),
-                );
+                // remote events so all remote-origin telemetry can be queried uniformly.
 
                 Ok(Some(this))
             });
@@ -2015,10 +1989,6 @@ impl ProtoClient for ChannelClient {
         &self.message_handlers
     }
 
-    fn is_via_collab(&self) -> bool {
-        false
-    }
-
     fn has_wsl_interop(&self) -> bool {
         self.has_wsl_interop
     }
@@ -2027,6 +1997,7 @@ impl ProtoClient for ChannelClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use semver::Version;
     use crate::transport::mock::{MockConnection, MockConnectionRegistry, MockDelegate};
     use gpui::TestAppContext;
     use rpc::{ErrorCodeExt, proto::ErrorCode};

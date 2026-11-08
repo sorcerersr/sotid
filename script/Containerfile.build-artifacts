@@ -1,0 +1,68 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Same dependency list as script/linux for Ubuntu 24.04, plus the flatpak
+# tooling the CI flatpak job installs. The Rust toolchain is installed below
+# (self-contained), so the host only needs podman.
+ARG TOOLCHAIN=stable
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        gcc \
+        g++ \
+        libasound2-dev \
+        libfontconfig-dev \
+        libgit2-dev \
+        libglib2.0-dev \
+        libssl-dev \
+        libva-dev \
+        libvulkan1 \
+        libwayland-dev \
+        libx11-xcb-dev \
+        libxkbcommon-x11-dev \
+        libzstd-dev \
+        make \
+        cmake \
+        clang \
+        lld \
+        llvm \
+        jq \
+        git \
+        curl \
+        gettext-base \
+        elfutils \
+        libsqlite3-dev \
+        musl-tools \
+        musl-dev \
+        build-essential \
+        libstdc++-14-dev \
+        flatpak \
+        flatpak-builder \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install the pinned Rust toolchain (version passed as a build arg read from
+# rust-toolchain.toml) plus the targets bundle-linux needs, and cargo-zigbuild
+# for the cross-arch remote_server build. Self-contained: the host's rustup is
+# not used, which avoids the user-namespace permission issues that mounting a
+# host toolchain causes (e.g. inside distrobox).
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none \
+    && . "$HOME/.cargo/env" \
+    && rustup toolchain install "$TOOLCHAIN" --profile minimal \
+        --target x86_64-unknown-linux-gnu \
+        --target x86_64-unknown-linux-musl \
+    && rustup default "$TOOLCHAIN" \
+    && cargo install --locked cargo-zigbuild
+
+# zig, required by cargo-zigbuild for the cross-arch remote_server build. Pinned
+# to a known-good release; bump if a future cargo-zigbuild needs a newer zig.
+ARG ZIG_VERSION=0.13.0
+RUN curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz" \
+    | tar -xJ -C /usr/local --strip-components=1
+
+# The flathub remote is added at image build time, mirroring the CI flatpak job.
+# script/build-artifacts re-adds it before each run because the flatpak
+# installation directory is a host mount that starts out empty.
+RUN flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+# Put the rustup shims on PATH so the build finds cargo/rustc.
+ENV PATH="/root/.cargo/bin:$PATH"

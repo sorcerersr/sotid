@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{Context as _, Result};
-use client::{TypedEnvelope, proto};
+use proto::{self, TypedEnvelope};
 use collections::{BTreeMap, FxHasher, HashSet};
 use extension::{
     Event, Extension, ExtensionDebugAdapterProviderProxy, ExtensionEvents, ExtensionHostProxy,

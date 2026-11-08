@@ -51,7 +51,7 @@ use workspace::searchable::{
 use workspace::{
     ItemId, ItemNavHistory, Pane, SaveIntent, Workspace, WorkspaceId, delete_unloaded_items,
 };
-use zed_actions::{DecreaseBufferFontSize, IncreaseBufferFontSize, ResetBufferFontSize};
+use sotid_actions::{DecreaseBufferFontSize, IncreaseBufferFontSize, ResetBufferFontSize};
 
 use crate::markdown_preview_settings::MarkdownPreviewSettings;
 use crate::{
@@ -1750,9 +1750,6 @@ impl Item for MarkdownPreviewView {
             .tab_tooltip_text(cx)
     }
 
-    fn telemetry_event_text(&self) -> Option<&'static str> {
-        Some("Markdown Preview Opened")
-    }
 
     fn tab_extra_context_menu_actions(
         &self,

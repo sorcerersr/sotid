@@ -1,8 +1,7 @@
 use crate::{
     Event, ExtensionIndex, ExtensionIndexEntry, ExtensionIndexLanguageEntry,
-    ExtensionIndexThemeEntry, ExtensionManifest, ExtensionStore, GrammarManifestEntry,
-    MAX_REMOTE_SYNC_ATTEMPTS, MAX_REMOTE_SYNC_RETRY_DELAY, RELOAD_DEBOUNCE_DURATION,
-    REMOTE_SYNC_TIMEOUT, SchemaVersion,
+    ExtensionIndexThemeEntry, ExtensionManifest, ExtensionStore, MAX_REMOTE_SYNC_ATTEMPTS,
+    MAX_REMOTE_SYNC_RETRY_DELAY, RELOAD_DEBOUNCE_DURATION, REMOTE_SYNC_TIMEOUT,
     headless_host::{
         ExtensionVersion, HeadlessExtensionStore, LoadedExtension, STALE_UPLOAD_TTL,
         hash_directory_contents, remove_stale_uploads,
@@ -11,12 +10,13 @@ use crate::{
 };
 use async_compression::futures::bufread::GzipEncoder;
 use async_trait::async_trait;
-use client::{AnyProtoClient, TypedEnvelope, proto};
+use rpc::{AnyProtoClient, TypedEnvelope, proto};
 use collections::{BTreeMap, HashMap, HashSet};
 use extension::{
-    BuildTaskTemplate, CodeLabel, Command, Completion, ContextServerConfiguration,
+    BuildTaskTemplate, CodeLabel, Command, Completion,
     DebugAdapterBinary, DebugRequest, DebugScenario, DebugTaskDefinition, Extension,
-    ExtensionHostProxy, KeyValueStoreDelegate, LibManifestEntry, ProjectDelegate, SlashCommand,
+    ExtensionHostProxy, GrammarManifestEntry, KeyValueStoreDelegate, LibManifestEntry,
+    SchemaVersion, SlashCommand,
     SlashCommandArgumentCompletion, SlashCommandOutput, StartDebuggingRequestArgumentsRequest,
     Symbol, WorktreeDelegate,
 };
@@ -49,7 +49,7 @@ use std::{
     },
     time::{Duration, SystemTime},
 };
-use task::{SpawnInTerminal, ZedDebugConfig};
+use task::{SpawnInTerminal, SotidDebugConfig};
 use theme::ThemeRegistry;
 use util::{rel_path::rel_path_buf, test::TempTree};
 
@@ -397,7 +397,6 @@ async fn test_extension_store(cx: &mut TestAppContext) {
                         .into_iter()
                         .collect(),
                         language_servers: BTreeMap::default(),
-                        context_servers: BTreeMap::default(),
                         slash_commands: BTreeMap::default(),
                         snippets: None,
                         capabilities: Vec::new(),
@@ -428,7 +427,6 @@ async fn test_extension_store(cx: &mut TestAppContext) {
                         languages: Default::default(),
                         grammars: BTreeMap::default(),
                         language_servers: BTreeMap::default(),
-                        context_servers: BTreeMap::default(),
                         slash_commands: BTreeMap::default(),
                         snippets: None,
                         capabilities: Vec::new(),
@@ -614,7 +612,6 @@ async fn test_extension_store(cx: &mut TestAppContext) {
                 languages: Default::default(),
                 grammars: BTreeMap::default(),
                 language_servers: BTreeMap::default(),
-                context_servers: BTreeMap::default(),
                 slash_commands: BTreeMap::default(),
                 snippets: None,
                 capabilities: Vec::new(),
@@ -4191,7 +4188,6 @@ impl Extension for FakeExtension {
             languages: Vec::new(),
             grammars: BTreeMap::default(),
             language_servers: BTreeMap::default(),
-            context_servers: BTreeMap::default(),
             slash_commands: BTreeMap::default(),
             snippets: None,
             capabilities: Vec::new(),
@@ -4305,22 +4301,6 @@ impl Extension for FakeExtension {
         anyhow::bail!("not supported by FakeExtension")
     }
 
-    async fn context_server_command(
-        &self,
-        _context_server_id: Arc<str>,
-        _project: Arc<dyn ProjectDelegate>,
-    ) -> anyhow::Result<Command> {
-        anyhow::bail!("not supported by FakeExtension")
-    }
-
-    async fn context_server_configuration(
-        &self,
-        _context_server_id: Arc<str>,
-        _project: Arc<dyn ProjectDelegate>,
-    ) -> anyhow::Result<Option<ContextServerConfiguration>> {
-        anyhow::bail!("not supported by FakeExtension")
-    }
-
     async fn suggest_docs_packages(&self, _provider: Arc<str>) -> anyhow::Result<Vec<String>> {
         anyhow::bail!("not supported by FakeExtension")
     }
@@ -4354,7 +4334,7 @@ impl Extension for FakeExtension {
 
     async fn dap_config_to_scenario(
         &self,
-        _config: ZedDebugConfig,
+        _config: SotidDebugConfig,
     ) -> anyhow::Result<DebugScenario> {
         anyhow::bail!("not supported by FakeExtension")
     }

@@ -7,7 +7,7 @@
 use std::process::Command;
 
 fn git_sha() -> Option<String> {
-    if let Ok(sha) = std::env::var("ZED_COMMIT_SHA") {
+    if let Ok(sha) = std::env::var("SOTID_COMMIT_SHA") {
         return Some(sha);
     }
 

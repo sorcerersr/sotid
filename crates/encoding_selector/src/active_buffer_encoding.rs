@@ -44,7 +44,7 @@ impl ActiveBufferEncoding {
         self.is_dirty = false;
 
         let project = self.project.read(cx);
-        self.is_shared = project.is_shared();
+        self.is_shared = false;
         self.is_via_remote_server = project.is_via_remote_server();
 
         if let Some(buffer) = editor.read(cx).active_buffer(cx) {
