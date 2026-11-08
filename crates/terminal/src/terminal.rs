@@ -373,6 +373,7 @@ impl Modes {
     pub const MOUSE_DRAG: Self = Self(1 << 14);
     pub const MOUSE_MOTION: Self = Self(1 << 15);
     pub const VI: Self = Self(1 << 16);
+    pub const KITTY_KEYBOARD: Self = Self(1 << 17);
     pub const MOUSE_MODE: Self =
         Self(Self::MOUSE_REPORT_CLICK.0 | Self::MOUSE_DRAG.0 | Self::MOUSE_MOTION.0);
 
@@ -3935,6 +3936,49 @@ mod tests {
             assert!(terminal.replace_display_output(b"replacement", cx).is_err());
             assert!(terminal.get_content().contains("hello-from-subprocess"));
         });
+    }
+
+    #[gpui::test]
+    async fn test_kitty_keyboard_protocol_shift_enter(cx: &mut TestAppContext) {
+        init_test(cx);
+
+        let terminal = cx.new(|cx| {
+            TerminalBuilder::new_display_only(
+                SettingsCursorShape::default(),
+                AlternateScroll::On,
+                None,
+                0,
+                cx.background_executor(),
+                PathStyle::local(),
+            )
+            .subscribe(cx)
+        });
+
+        // The app opts into the kitty keyboard protocol (DISAMBIGUATE_ESC_CODES).
+        // crossterm's `PushKeyboardEnhancementFlags` emits `CSI > flags u`.
+        terminal.update(cx, |terminal, cx| {
+            terminal.write_raw_output(b"\x1b[>1u", cx);
+        });
+        cx.run_until_parked();
+
+        // The protocol flag is surfaced to the terminal modes
+        terminal.update(cx, |terminal, _cx| {
+            let term_lock = terminal.term.lock();
+            terminal.last_content = make_content(&term_lock, &terminal.last_content);
+            drop(term_lock);
+            assert!(terminal.last_content.mode.contains(Modes::KITTY_KEYBOARD));
+            terminal.take_pty_write_log();
+        });
+
+        // Shift+enter now emits the kitty CSI u sequence
+        terminal.update(cx, |terminal, _cx| {
+            let shift_enter = Keystroke::parse("shift-enter").unwrap();
+            let success = terminal.try_keystroke(&shift_enter, false);
+            assert!(success);
+        });
+
+        let pty_writes = terminal.update(cx, |terminal, _| terminal.take_pty_write_log());
+        assert_eq!(pty_writes, vec![b"\x1b[13;2u".to_vec()]);
     }
 
     fn init_terminal_test(cx: &mut TestAppContext, output: &[u8]) -> Entity<Terminal> {

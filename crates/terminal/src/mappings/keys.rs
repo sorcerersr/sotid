@@ -49,6 +49,12 @@ pub(crate) fn to_esc_str(
     mode: Modes,
     option_as_meta: bool,
 ) -> Option<Cow<'static, str>> {
+    if mode.contains(Modes::KITTY_KEYBOARD) {
+        if let Some(seq) = kitty_csi_u(keystroke) {
+            return Some(Cow::Owned(seq));
+        }
+    }
+
     let modifiers = TerminalModifiers::new(keystroke);
 
     // Manual Bindings including modifiers
@@ -231,6 +237,22 @@ pub(crate) fn to_esc_str(
     }
 
     None
+}
+
+/// Kitty keyboard protocol sequence for modified Enter. Only modified Enter is
+/// redirected; plain Enter stays CR to minimize behavior change for apps that
+/// opted into the protocol. `None` means fall through to the legacy mapping.
+fn kitty_csi_u(keystroke: &Keystroke) -> Option<String> {
+    if keystroke.key == "enter"
+        && (keystroke.modifiers.shift
+            || keystroke.modifiers.alt
+            || keystroke.modifiers.control)
+    {
+        // 13 is the CR codepoint for Enter
+        Some(format!("\x1b[13;{}u", modifier_code(keystroke)))
+    } else {
+        None
+    }
 }
 
 ///   Code     Modifiers
@@ -430,6 +452,46 @@ mod test {
 
         // Regular enter should still send carriage return
         assert_eq!(to_esc_str(&regular_enter, mode, false), Some("\x0d".into()));
+    }
+
+    #[test]
+    fn test_kitty_keyboard_modified_enter() {
+        let mode = Modes::KITTY_KEYBOARD;
+        let shift_enter = Keystroke::parse("shift-enter").unwrap();
+        let ctrl_enter = Keystroke::parse("ctrl-enter").unwrap();
+        let alt_enter = Keystroke::parse("alt-enter").unwrap();
+        let regular_enter = Keystroke::parse("enter").unwrap();
+
+        // Modified enter emits kitty CSI u sequences
+        assert_eq!(
+            to_esc_str(&shift_enter, mode, false),
+            Some("\x1b[13;2u".into())
+        );
+        assert_eq!(
+            to_esc_str(&ctrl_enter, mode, false),
+            Some("\x1b[13;5u".into())
+        );
+        assert_eq!(
+            to_esc_str(&alt_enter, mode, false),
+            Some("\x1b[13;3u".into())
+        );
+
+        // Plain enter stays CR even with the protocol on
+        assert_eq!(to_esc_str(&regular_enter, mode, false), Some("\x0d".into()));
+
+        // Normal keys fall through to the legacy mapping
+        let a = Keystroke::parse("a").unwrap();
+        assert_eq!(to_esc_str(&a, mode, false), None);
+        let shift_a = Keystroke::parse("shift-a").unwrap();
+        assert_eq!(to_esc_str(&shift_a, mode, false), None);
+    }
+
+    #[test]
+    fn test_kitty_keyboard_off_keeps_legacy_shift_enter() {
+        let shift_enter = Keystroke::parse("shift-enter").unwrap();
+
+        // Without the protocol, shift-enter keeps the legacy LF byte
+        assert_eq!(to_esc_str(&shift_enter, Modes::NONE, false), Some("\x0a".into()));
     }
 
     #[test]

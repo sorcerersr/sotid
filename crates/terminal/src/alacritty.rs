@@ -129,6 +129,8 @@ pub(super) fn display_only_term_config(
         default_cursor_style: alacritty_cursor_style(cursor_shape),
         semantic_escape_chars: format!("{SEMANTIC_ESCAPE_CHARS}─"),
         osc52: Osc52::Disabled,
+        // Allow apps to opt into the kitty keyboard protocol via `CSI > flags u`
+        kitty_keyboard: true,
         ..Config::default()
     }
 }
@@ -141,6 +143,8 @@ pub(super) fn pty_term_config(
         scrolling_history,
         default_cursor_style: alacritty_cursor_style(cursor_shape),
         semantic_escape_chars: format!("{SEMANTIC_ESCAPE_CHARS}─"),
+        // Allow apps to opt into the kitty keyboard protocol via `CSI > flags u`
+        kitty_keyboard: true,
         ..Config::default()
     }
 }
@@ -627,6 +631,12 @@ impl Modes {
         add_alacritty_mode(&mut mode, self, Self::MOUSE_DRAG, TermMode::MOUSE_DRAG);
         add_alacritty_mode(&mut mode, self, Self::MOUSE_MOTION, TermMode::MOUSE_MOTION);
         add_alacritty_mode(&mut mode, self, Self::VI, TermMode::VI);
+        add_alacritty_mode(
+            &mut mode,
+            self,
+            Self::KITTY_KEYBOARD,
+            TermMode::DISAMBIGUATE_ESC_CODES,
+        );
         mode
     }
 }
@@ -720,6 +730,12 @@ fn terminal_modes_from_alacritty(mode: TermMode) -> Modes {
         Modes::MOUSE_MOTION,
     );
     add_terminal_mode(&mut terminal_modes, mode, TermMode::VI, Modes::VI);
+    add_terminal_mode(
+        &mut terminal_modes,
+        mode,
+        TermMode::DISAMBIGUATE_ESC_CODES,
+        Modes::KITTY_KEYBOARD,
+    );
     terminal_modes
 }
 
@@ -1162,7 +1178,8 @@ mod tests {
             | TermMode::ALT_SCREEN
             | TermMode::MOUSE_DRAG
             | TermMode::SGR_MOUSE
-            | TermMode::VI;
+            | TermMode::VI
+            | TermMode::DISAMBIGUATE_ESC_CODES;
 
         let terminal_modes = terminal_modes_from_alacritty(alacritty_modes);
         assert!(terminal_modes.contains(Modes::APP_CURSOR));
@@ -1172,6 +1189,7 @@ mod tests {
         assert!(terminal_modes.intersects(Modes::MOUSE_MODE));
         assert!(terminal_modes.contains(Modes::SGR_MOUSE));
         assert!(terminal_modes.contains(Modes::VI));
+        assert!(terminal_modes.contains(Modes::KITTY_KEYBOARD));
         assert!(!terminal_modes.contains(Modes::MOUSE_REPORT_CLICK));
 
         let alacritty_modes = terminal_modes.to_alacritty();
@@ -1181,7 +1199,14 @@ mod tests {
         assert!(alacritty_modes.contains(TermMode::MOUSE_DRAG));
         assert!(alacritty_modes.contains(TermMode::SGR_MOUSE));
         assert!(alacritty_modes.contains(TermMode::VI));
+        assert!(alacritty_modes.contains(TermMode::DISAMBIGUATE_ESC_CODES));
         assert!(!alacritty_modes.contains(TermMode::MOUSE_REPORT_CLICK));
+    }
+
+    #[test]
+    fn terminal_modes_from_alacritty_empty_has_no_kitty_keyboard() {
+        let terminal_modes = terminal_modes_from_alacritty(TermMode::empty());
+        assert!(!terminal_modes.contains(Modes::KITTY_KEYBOARD));
     }
 
     #[test]
