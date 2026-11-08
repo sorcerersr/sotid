@@ -1,9 +1,6 @@
 # yaml-language-server: $schema=https://www.schemastore.org/github-issue-config.json
 blank_issues_enabled: false
 contact_links:
-  - name: Feature request
-    url: https://github.com/sotid/sotid/discussions/new?category=feature-requests
-    about: To request a feature, open a new discussion under one of the appropriate categories.
   - name: Sotid issues
     url: https://github.com/sotid/sotid/issues
     about: Browse or search existing issues before opening a new one.
