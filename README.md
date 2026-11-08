@@ -1,9 +1,6 @@
-> [!IMPORTANT]
-> Remove this line to confirm you've reviewed this PR before submitting.
-
 # Sotid
 
-Sotid is a high-performance, offline code editor. It is a fork of [Zed](https://zed.dev), with all cloud connections (AI, collaboration, telemetry, update checks, extension marketplace) removed. Sotid keeps only project-related connections: git, package registries, language servers, and SSH remote development.
+Sotid is a high-performance, offline code editor. It is a fork of [Zed](https://zed.dev), with all cloud connections (AI, collaboration, telemetry, update checks, extension marketplace) removed. Sotid keeps only project-related connections: git, package registries, language servers, and SSH remote development. Sotid is intended to diverge from Zed over time. It does not track upstream Zed releases, and no guarantee is made that any future Zed change will be incorporated; individual features and fixes may be cherry-picked when they fit Sotid's goals.
 
 ---
 
