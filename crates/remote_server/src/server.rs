@@ -931,7 +931,7 @@ fn read_proxy_settings(cx: &mut Context<HeadlessProject>) -> Option<Url> {
 fn cleanup_old_binaries() -> Result<()> {
     let server_dir = paths::remote_server_dir_relative();
     let release_channel = release_channel::RELEASE_CHANNEL.dev_name();
-    let prefix = format!("zed-remote-server-{}-", release_channel);
+    let prefix = format!("sotid-remote-server-{}-", release_channel);
 
     for entry in std::fs::read_dir(server_dir.as_std_path())? {
         let path = entry?.path();
@@ -1119,6 +1119,13 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn is_new_version_keeps_newer_and_rejects_unparseable_versions() {
+        assert!(!is_new_version("0.0.0"));
+        assert!(is_new_version("99999.0.0"));
+        assert!(!is_new_version("build"));
     }
 
     #[test]
