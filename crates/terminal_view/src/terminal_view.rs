@@ -21,6 +21,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use settings::{
     SeedQuerySetting, Settings, SettingsStore, TerminalBell, TerminalBlink, WorkingDirectory,
+    update_settings_file,
 };
 use std::{
     any::Any,
@@ -43,6 +44,8 @@ use terminal_element::TerminalElement;
 use terminal_panel::TerminalPanel;
 use terminal_path_like_target::{hover_path_like_target, open_path_like_target};
 use terminal_scrollbar::TerminalScrollHandle;
+use theme_settings::ThemeSettings;
+use sotid_actions::{DecreaseBufferFontSize, IncreaseBufferFontSize, ResetBufferFontSize};
 use ui::{
     ContextMenu, Divider, ScrollAxes, Scrollbars, Tooltip, WithScrollbar,
     prelude::*,
@@ -754,7 +757,24 @@ impl TerminalView {
             && matches!(self.mode, TerminalMode::Standalone)
             && EditorSettings::get_global(cx).mouse_wheel_zoom
         {
-            theme_settings::adjust_buffer_font_size_for_scroll(event.delta, cx);
+            let delta_y = match event.delta {
+                gpui::ScrollDelta::Pixels(pixels) => f32::from(pixels.y),
+                gpui::ScrollDelta::Lines(lines) => lines.y,
+            };
+            if delta_y != 0.0 {
+                let terminal_settings = TerminalSettings::get_global(cx);
+                let theme_settings = ThemeSettings::get_global(cx);
+                let base_font_size = if cx.has_global::<theme_settings::TerminalFontSize>() {
+                    theme_settings.terminal_font_size(cx)
+                } else {
+                    terminal_settings.font_size.map_or(
+                        theme_settings.buffer_font_size(cx),
+                        |size| theme_settings::adjusted_font_size(size, cx),
+                    )
+                };
+                let delta = if delta_y > 0.0 { px(1.0) } else { px(-1.0) };
+                theme_settings::set_terminal_font_size(cx, base_font_size + delta);
+            }
             return cx.stop_propagation();
         }
 
@@ -787,6 +807,78 @@ impl TerminalView {
             .last_content
             .mode
             .contains(Modes::ALT_SCREEN)
+    }
+
+    fn increase_font_size(
+        &mut self,
+        action: &IncreaseBufferFontSize,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.adjust_terminal_font_size(action.persist, px(1.0), cx);
+    }
+
+    fn decrease_font_size(
+        &mut self,
+        action: &DecreaseBufferFontSize,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.adjust_terminal_font_size(action.persist, px(-1.0), cx);
+    }
+
+    fn reset_font_size(
+        &mut self,
+        action: &ResetBufferFontSize,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if action.persist {
+            let Ok(fs) = self
+                .workspace
+                .read_with(cx, |workspace, _| workspace.app_state().fs.clone())
+            else {
+                return;
+            };
+            update_settings_file(fs, cx, move |settings, _| {
+                if let Some(terminal) = settings.terminal.as_mut() {
+                    terminal.font_size = None;
+                }
+            });
+        } else {
+            theme_settings::reset_terminal_font_size(cx);
+        }
+    }
+
+    fn adjust_terminal_font_size(&self, persist: bool, delta: Pixels, cx: &mut Context<Self>) {
+        // The zoom base must match the currently-displayed terminal font size:
+        // the active override when one exists, otherwise the setting-aware base.
+        // This avoids a discontinuity when a `terminal.font_size` setting is
+        // active and keeps the zoom incremental when an override already exists.
+        let terminal_settings = TerminalSettings::get_global(cx);
+        let theme_settings = ThemeSettings::get_global(cx);
+        let base_font_size = if cx.has_global::<theme_settings::TerminalFontSize>() {
+            theme_settings.terminal_font_size(cx)
+        } else {
+            terminal_settings.font_size.map_or(
+                theme_settings.buffer_font_size(cx),
+                |size| theme_settings::adjusted_font_size(size, cx),
+            )
+        };
+        if persist {
+            let Ok(fs) = self
+                .workspace
+                .read_with(cx, |workspace, _| workspace.app_state().fs.clone())
+            else {
+                return;
+            };
+            update_settings_file(fs, cx, move |settings, _| {
+                settings.terminal.get_or_insert_default().font_size =
+                    Some(f32::from(theme_settings::clamp_font_size(base_font_size + delta)).into());
+            });
+        } else {
+            theme_settings::set_terminal_font_size(cx, base_font_size + delta);
+        }
     }
 
     fn scroll_line_up(&mut self, _: &ScrollLineUp, _: &mut Window, cx: &mut Context<Self>) {
@@ -1479,6 +1571,9 @@ impl Render for TerminalView {
             .on_action(cx.listener(TerminalView::select_all))
             .on_action(cx.listener(TerminalView::rerun_task))
             .on_action(cx.listener(TerminalView::rename_terminal))
+            .on_action(cx.listener(TerminalView::increase_font_size))
+            .on_action(cx.listener(TerminalView::decrease_font_size))
+            .on_action(cx.listener(TerminalView::reset_font_size))
             .on_key_down(cx.listener(Self::key_down))
             .on_mouse_down(
                 MouseButton::Right,
@@ -2409,6 +2504,10 @@ mod tests {
             });
         };
 
+        let terminal_font_size = |cx: &VisualTestContext| {
+            cx.read(|cx| theme_settings::ThemeSettings::get_global(cx).terminal_font_size(cx))
+        };
+
         let buffer_font_size = |cx: &VisualTestContext| {
             cx.read(|cx| theme_settings::ThemeSettings::get_global(cx).buffer_font_size(cx))
         };
@@ -2437,18 +2536,21 @@ mod tests {
             terminal_view.read_with(&cx, |view, cx| view.terminal_bounds(cx).bounds.center());
 
         set_mouse_wheel_zoom(true, &mut cx);
-        let initial_font_size = buffer_font_size(&cx);
+        let initial_font_size = terminal_font_size(&cx);
+        let initial_buffer_font_size = buffer_font_size(&cx);
         zoom_scroll(position, 1., &mut cx);
-        assert!(buffer_font_size(&cx) > initial_font_size);
+        assert!(terminal_font_size(&cx) > initial_font_size);
+        // Wheel-zoom in the terminal must not affect the editor buffer size.
+        assert_eq!(buffer_font_size(&cx), initial_buffer_font_size);
         zoom_scroll(position, -1., &mut cx);
-        assert_eq!(buffer_font_size(&cx), initial_font_size);
+        assert_eq!(terminal_font_size(&cx), initial_font_size);
         zoom_scroll(position, -1., &mut cx);
-        assert!(buffer_font_size(&cx) < initial_font_size);
+        assert!(terminal_font_size(&cx) < initial_font_size);
 
         set_mouse_wheel_zoom(false, &mut cx);
-        let initial_font_size = buffer_font_size(&cx);
+        let initial_font_size = terminal_font_size(&cx);
         zoom_scroll(position, 1., &mut cx);
-        assert_eq!(buffer_font_size(&cx), initial_font_size);
+        assert_eq!(terminal_font_size(&cx), initial_font_size);
 
         set_mouse_wheel_zoom(true, &mut cx);
         cx.update(|window, cx| {
@@ -2470,9 +2572,141 @@ mod tests {
         let position =
             terminal_view.read_with(&cx, |view, cx| view.terminal_bounds(cx).bounds.center());
 
-        let initial_font_size = buffer_font_size(&cx);
+        let initial_font_size = terminal_font_size(&cx);
         zoom_scroll(position, 1., &mut cx);
-        assert_eq!(buffer_font_size(&cx), initial_font_size);
+        assert_eq!(terminal_font_size(&cx), initial_font_size);
+    }
+
+    #[gpui::test]
+    async fn test_keyboard_font_size_actions(cx: &mut TestAppContext) {
+        let (project, _workspace, window_handle) = init_test_with_window(cx).await;
+        let (_pane, _terminal, terminal_view) =
+            add_display_only_terminal(&project, window_handle, true, false, cx);
+
+        let mut cx = VisualTestContext::from_window(window_handle.into(), cx);
+        cx.simulate_resize(gpui::size(px(400.), px(200.)));
+        cx.draw(
+            gpui::Point::default(),
+            gpui::size(px(400.), px(200.)),
+            |_, _| terminal_view.clone().into_any_element(),
+        );
+        cx.run_until_parked();
+
+        let terminal_font_size = |cx: &VisualTestContext| {
+            cx.read(|cx| theme_settings::ThemeSettings::get_global(cx).terminal_font_size(cx))
+        };
+        let buffer_font_size = |cx: &VisualTestContext| {
+            cx.read(|cx| theme_settings::ThemeSettings::get_global(cx).buffer_font_size(cx))
+        };
+
+        let initial_terminal = terminal_font_size(&cx);
+        let initial_buffer = buffer_font_size(&cx);
+
+        // Increase only resizes the terminal, leaving the editor buffer unchanged.
+        cx.update(|window, cx| {
+            window.dispatch_action(Box::new(IncreaseBufferFontSize { persist: false }), cx);
+        });
+        let increased = terminal_font_size(&cx);
+        assert!(increased > initial_terminal);
+        assert_eq!(buffer_font_size(&cx), initial_buffer);
+
+        // Decrease returns to the base size without touching the buffer.
+        cx.update(|window, cx| {
+            window.dispatch_action(Box::new(DecreaseBufferFontSize { persist: false }), cx);
+        });
+        assert_eq!(terminal_font_size(&cx), initial_terminal);
+        assert_eq!(buffer_font_size(&cx), initial_buffer);
+
+        // Reset clears the override back to the base size.
+        cx.update(|window, cx| {
+            window.dispatch_action(Box::new(IncreaseBufferFontSize { persist: false }), cx);
+        });
+        cx.update(|window, cx| {
+            window.dispatch_action(Box::new(ResetBufferFontSize { persist: false }), cx);
+        });
+        assert_eq!(terminal_font_size(&cx), initial_terminal);
+        assert_eq!(buffer_font_size(&cx), initial_buffer);
+    }
+
+    #[gpui::test]
+    async fn test_keyboard_font_size_persist(cx: &mut TestAppContext) {
+        let (project, _workspace, window_handle) = init_test_with_window(cx).await;
+        let (_pane, _terminal, terminal_view) =
+            add_display_only_terminal(&project, window_handle, true, false, cx);
+
+        let mut cx = VisualTestContext::from_window(window_handle.into(), cx);
+        cx.simulate_resize(gpui::size(px(400.), px(200.)));
+        cx.draw(
+            gpui::Point::default(),
+            gpui::size(px(400.), px(200.)),
+            |_, _| terminal_view.clone().into_any_element(),
+        );
+        cx.run_until_parked();
+
+        assert_eq!(
+            cx.read(|cx| TerminalSettings::get_global(cx).font_size),
+            None
+        );
+
+        let initial_terminal =
+            cx.read(|cx| theme_settings::ThemeSettings::get_global(cx).terminal_font_size(cx));
+
+        // A persist increase writes the terminal font size to the settings file.
+        cx.update(|window, cx| {
+            window.dispatch_action(Box::new(IncreaseBufferFontSize { persist: true }), cx);
+        });
+        cx.run_until_parked();
+        let persisted = cx.read(|cx| TerminalSettings::get_global(cx).font_size);
+        assert_eq!(persisted, Some(initial_terminal + px(1.)));
+
+        // A persist reset clears the setting.
+        cx.update(|window, cx| {
+            window.dispatch_action(Box::new(ResetBufferFontSize { persist: true }), cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            cx.read(|cx| TerminalSettings::get_global(cx).font_size),
+            None
+        );
+    }
+
+    #[gpui::test]
+    async fn test_zoom_starts_from_setting(cx: &mut TestAppContext) {
+        let (project, workspace, window_handle) = init_test_with_window(cx).await;
+        let (_pane, _terminal, terminal_view) =
+            add_display_only_terminal(&project, window_handle, true, false, cx);
+
+        let mut cx = VisualTestContext::from_window(window_handle.into(), cx);
+        cx.simulate_resize(gpui::size(px(400.), px(200.)));
+        cx.draw(
+            gpui::Point::default(),
+            gpui::size(px(400.), px(200.)),
+            |_, _| terminal_view.clone().into_any_element(),
+        );
+        cx.run_until_parked();
+
+        // Set a terminal font size setting that differs from the buffer font size.
+        let fs = workspace.read_with(&cx, |workspace, _| workspace.app_state().fs.clone());
+        let setting_size = px(16.0);
+        cx.update(|_window, cx| {
+            update_settings_file(fs, cx, move |settings, _| {
+                settings.terminal.get_or_insert_default().font_size =
+                    Some(f32::from(setting_size).into());
+            });
+        });
+        cx.run_until_parked();
+
+        let buffer = cx.read(|cx| theme_settings::ThemeSettings::get_global(cx).buffer_font_size(cx));
+        assert_ne!(buffer, setting_size);
+
+        // Zoom in: the override should be set to setting + 1, not buffer + 1.
+        cx.update(|window, cx| {
+            window.dispatch_action(Box::new(IncreaseBufferFontSize { persist: false }), cx);
+        });
+        let override_size =
+            cx.read(|cx| theme_settings::ThemeSettings::get_global(cx).terminal_font_size(cx));
+        assert_eq!(override_size, setting_size + px(1.0));
+        assert_ne!(override_size, buffer + px(1.0));
     }
 
     #[gpui::test]

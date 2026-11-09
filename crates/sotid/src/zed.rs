@@ -1044,10 +1044,14 @@ fn register_actions(
                     update_settings_file(fs.clone(), cx, move |settings, _| {
                         settings.theme.ui_font_size = None;
                         settings.theme.buffer_font_size = None;
+                        if let Some(terminal) = settings.terminal.as_mut() {
+                            terminal.font_size = None;
+                        }
                     });
                 } else {
                     theme_settings::reset_ui_font_size(cx);
                     theme_settings::reset_buffer_font_size(cx);
+                    theme_settings::reset_terminal_font_size(cx);
                 }
             }
         })

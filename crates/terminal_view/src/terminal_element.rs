@@ -1080,7 +1080,25 @@ impl TerminalElement {
 
     fn rem_size(&self, cx: &mut App) -> Option<Pixels> {
         let settings = ThemeSettings::get_global(cx);
-        let buffer_font_size = settings.buffer_font_size(cx);
+        // Only standalone terminals use the terminal-specific font size override;
+        // embedded terminals keep following the buffer font size so an active
+        // standalone override never leaks into their rendering. When no override
+        // is active, the standalone terminal uses the setting-aware base so the
+        // rem scale matches the currently-displayed font size.
+        let base_font_size = match &self.mode {
+            TerminalMode::Standalone => {
+                if cx.has_global::<theme_settings::TerminalFontSize>() {
+                    settings.terminal_font_size(cx)
+                } else {
+                    let terminal_settings = TerminalSettings::get_global(cx);
+                    terminal_settings.font_size.map_or(
+                        settings.buffer_font_size(cx),
+                        |size| theme_settings::adjusted_font_size(size, cx),
+                    )
+                }
+            }
+            TerminalMode::Embedded { .. } => settings.buffer_font_size(cx),
+        };
         let rem_size_scale = {
             // Our default UI font size is 14px on a 16px base scale.
             // This means the default UI font size is 0.875rems.
@@ -1095,7 +1113,7 @@ impl TerminalElement {
             1. + default_font_size_delta
         };
 
-        Some(buffer_font_size * rem_size_scale)
+        Some(base_font_size * rem_size_scale)
     }
 }
 
@@ -1180,8 +1198,6 @@ impl Element for TerminalElement {
                 let hitbox = hitbox.unwrap();
                 let settings = ThemeSettings::get_global(cx);
 
-                let buffer_font_size = settings.buffer_font_size(cx);
-
                 let terminal_settings = TerminalSettings::get_global(cx);
                 let minimum_contrast = terminal_settings.minimum_contrast;
 
@@ -1206,15 +1222,22 @@ impl Element for TerminalElement {
 
                 let line_height = terminal_settings.line_height.value();
 
+                let base_font_size = terminal_settings.font_size.map_or(
+                    settings.buffer_font_size(cx),
+                    |size| theme_settings::adjusted_font_size(size, cx),
+                );
+
                 let font_size = match &self.mode {
                     TerminalMode::Embedded { .. } => {
                         window.text_style().font_size.to_pixels(window.rem_size())
                     }
-                    TerminalMode::Standalone => terminal_settings
-                        .font_size
-                        .map_or(buffer_font_size, |size| {
-                            theme_settings::adjusted_font_size(size, cx)
-                        }),
+                    TerminalMode::Standalone => {
+                        if cx.has_global::<theme_settings::TerminalFontSize>() {
+                            settings.terminal_font_size(cx)
+                        } else {
+                            base_font_size
+                        }
+                    }
                 };
 
                 let theme = cx.theme().clone();

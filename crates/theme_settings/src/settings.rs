@@ -144,6 +144,12 @@ pub struct MarkdownPreviewFontSize(Pixels);
 
 impl Global for MarkdownPreviewFontSize {}
 
+/// In-memory override for the standalone terminal font size.
+#[derive(Default)]
+pub struct TerminalFontSize(Pixels);
+
+impl Global for TerminalFontSize {}
+
 /// Represents the selection of a theme, which can be either static or dynamic.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(untagged)]
@@ -472,6 +478,18 @@ impl ThemeSettings {
             .unwrap_or_else(|| clamp_font_size(self.ui_font_size))
     }
 
+    /// Returns the effective standalone terminal font size.
+    ///
+    /// When a runtime override is present it wins, making the terminal zoom
+    /// independent of the editor. Otherwise it falls back to the buffer font
+    /// size, preserving the previous behavior exactly.
+    pub fn terminal_font_size(&self, cx: &App) -> Pixels {
+        if let Some(TerminalFontSize(size)) = cx.try_global::<TerminalFontSize>() {
+            return clamp_font_size(*size);
+        }
+        self.buffer_font_size(cx)
+    }
+
     /// Returns the buffer font size, read from the settings.
     ///
     /// The real buffer font size is stored in-memory, to support temporary font size changes.
@@ -697,6 +715,26 @@ pub fn adjust_markdown_preview_font_size(cx: &mut App, f: impl FnOnce(Pixels) ->
 pub fn reset_markdown_preview_font_size(cx: &mut App) {
     if cx.has_global::<MarkdownPreviewFontSize>() {
         cx.remove_global::<MarkdownPreviewFontSize>();
+        cx.refresh_windows();
+    }
+}
+
+/// Sets the standalone terminal font size override to an absolute value.
+///
+/// The caller is responsible for computing the correct base (e.g. the
+/// setting-aware terminal font size) before calling this. This allows the
+/// zoom to start from the currently-displayed size rather than the raw
+/// buffer size, avoiding a discontinuity when a `terminal.font_size`
+/// setting is active.
+pub fn set_terminal_font_size(cx: &mut App, size: Pixels) {
+    cx.set_global(TerminalFontSize(clamp_font_size(size)));
+    cx.refresh_windows();
+}
+
+/// Resets the standalone terminal font size to the default value.
+pub fn reset_terminal_font_size(cx: &mut App) {
+    if cx.has_global::<TerminalFontSize>() {
+        cx.remove_global::<TerminalFontSize>();
         cx.refresh_windows();
     }
 }
