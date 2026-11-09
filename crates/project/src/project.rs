@@ -14,7 +14,6 @@ pub mod project_settings;
 pub mod search;
 pub mod task_inventory;
 pub mod task_store;
-pub mod telemetry_snapshot;
 pub mod terminals;
 pub mod toolchain_store;
 pub mod trusted_worktrees;
@@ -1607,7 +1606,6 @@ impl Project {
             remote_proto.add_entity_message_handler(Self::handle_update_worktree);
             remote_proto.add_entity_message_handler(Self::handle_update_project);
             remote_proto.add_entity_message_handler(Self::handle_toast);
-            remote_proto.add_entity_message_handler(Self::handle_telemetry_event);
             remote_proto.add_entity_request_handler(Self::handle_language_server_prompt_request);
             remote_proto
                 .add_entity_request_handler(Self::handle_language_server_show_document_request);
@@ -4788,14 +4786,6 @@ impl Project {
             });
             Ok(())
         })
-    }
-
-    async fn handle_telemetry_event(
-        _this: Entity<Self>,
-        _envelope: TypedEnvelope<proto::TelemetryEvent>,
-        _cx: AsyncApp,
-    ) -> Result<()> {
-        Ok(())
     }
 
     async fn handle_language_server_prompt_request(

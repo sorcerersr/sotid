@@ -328,4 +328,10 @@ pub(crate) mod m_2026_08_30 {
     pub(crate) use settings::nest_markdown_preview_settings;
 }
 
+pub(crate) mod m_2026_11_09 {
+    mod keymap;
+
+    pub(crate) use keymap::KEYMAP_PATTERNS;
+}
+
 

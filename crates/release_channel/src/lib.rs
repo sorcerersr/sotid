@@ -1,4 +1,4 @@
-//! Provides constructs for the Zed app version and release channel.
+//! Provides constructs for the Sotid app version and release channel.
 
 #![deny(missing_docs)]
 
@@ -7,12 +7,11 @@ use std::{env, str::FromStr, sync::LazyLock};
 use gpui::{App, Global};
 use semver::Version;
 
-const ZED_DOCS_URL: &str = "https://zed.dev/docs";
-
 /// stable | dev | nightly | preview
 pub static RELEASE_CHANNEL_NAME: LazyLock<String> = LazyLock::new(|| {
     if cfg!(debug_assertions) {
-        env::var("ZED_RELEASE_CHANNEL").unwrap_or_else(|_| compile_time_release_channel_name())
+        env::var("SOTID_RELEASE_CHANNEL")
+            .unwrap_or_else(|_| compile_time_release_channel_name())
     } else {
         compile_time_release_channel_name()
     }
@@ -22,13 +21,13 @@ pub static RELEASE_CHANNEL_NAME: LazyLock<String> = LazyLock::new(|| {
 /// library, it vendors each crate separately and builds it in isolation, which
 /// makes the `include_str!` fail.
 ///
-/// The build script checks for `$ZED_RELEASE_CHANNEL` and emits the `cfg`
-#[cfg(__do_not_set_zed_release_channel)]
+/// The build script checks for `$SOTID_RELEASE_CHANNEL` and emits the `cfg`
+#[cfg(__do_not_set_sotid_release_channel)]
 fn compile_time_release_channel_name() -> String {
-    env!("ZED_RELEASE_CHANNEL").trim().to_string()
+    env!("SOTID_RELEASE_CHANNEL").trim().to_string()
 }
 
-#[cfg(not(__do_not_set_zed_release_channel))]
+#[cfg(not(__do_not_set_sotid_release_channel))]
 fn compile_time_release_channel_name() -> String {
     include_str!("../../sotid/RELEASE_CHANNEL").trim().to_string()
 }
@@ -44,14 +43,14 @@ pub static RELEASE_CHANNEL: LazyLock<ReleaseChannel> =
 #[cfg(target_os = "windows")]
 pub fn app_identifier() -> &'static str {
     match *RELEASE_CHANNEL {
-        ReleaseChannel::Dev => "Zed-Editor-Dev",
-        ReleaseChannel::Nightly => "Zed-Editor-Nightly",
-        ReleaseChannel::Preview => "Zed-Editor-Preview",
-        ReleaseChannel::Stable => "Zed-Editor-Stable",
+        ReleaseChannel::Dev => "Sotid-Editor-Dev",
+        ReleaseChannel::Nightly => "Sotid-Editor-Nightly",
+        ReleaseChannel::Preview => "Sotid-Editor-Preview",
+        ReleaseChannel::Stable => "Sotid-Editor-Stable",
     }
 }
 
-/// The Git commit SHA that Zed was built at.
+/// The Git commit SHA that Sotid was built at.
 #[derive(Clone, Eq, Debug, PartialEq)]
 pub struct AppCommitSha(String);
 
@@ -91,7 +90,7 @@ struct GlobalAppVersion(Version);
 
 impl Global for GlobalAppVersion {}
 
-/// The version of Zed.
+/// The version of Sotid.
 pub struct AppVersion;
 
 impl AppVersion {
@@ -134,12 +133,12 @@ impl AppVersion {
     }
 }
 
-/// A Zed release channel.
+/// A Sotid release channel.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum ReleaseChannel {
     /// The development release channel.
     ///
-    /// Used for local debug builds of Zed.
+    /// Used for local debug builds of Sotid.
     #[default]
     Dev,
 
@@ -167,14 +166,6 @@ pub fn init(app_version: Version, cx: &mut App) {
 pub fn init_test(app_version: Version, release_channel: ReleaseChannel, cx: &mut App) {
     cx.set_global(GlobalAppVersion(app_version));
     cx.set_global(GlobalReleaseChannel(release_channel))
-}
-
-/// Returns the Zed docs URL for the current release channel for the given
-/// `slug`.
-pub fn docs_url(slug: &str, cx: &App) -> String {
-    ReleaseChannel::try_global(cx)
-        .unwrap_or(*RELEASE_CHANNEL)
-        .docs_url(slug)
 }
 
 impl ReleaseChannel {
@@ -205,10 +196,10 @@ impl ReleaseChannel {
     /// Returns the display name for this [`ReleaseChannel`].
     pub fn display_name(&self) -> &'static str {
         match self {
-            ReleaseChannel::Dev => "Zed Dev",
-            ReleaseChannel::Nightly => "Zed Nightly",
-            ReleaseChannel::Preview => "Zed Preview",
-            ReleaseChannel::Stable => "Zed",
+            ReleaseChannel::Dev => "Sotid Dev",
+            ReleaseChannel::Nightly => "Sotid Nightly",
+            ReleaseChannel::Preview => "Sotid Preview",
+            ReleaseChannel::Stable => "Sotid",
         }
     }
 
@@ -224,13 +215,13 @@ impl ReleaseChannel {
 
     /// Returns the application ID that's used by Wayland as application ID
     /// and WM_CLASS on X11.
-    /// This also has to match the bundle identifier for Zed on macOS.
+    /// This also has to match the bundle identifier for Sotid on macOS.
     pub fn app_id(&self) -> &'static str {
         match self {
-            ReleaseChannel::Dev => "dev.zed.Zed-Dev",
-            ReleaseChannel::Nightly => "dev.zed.Zed-Nightly",
-            ReleaseChannel::Preview => "dev.zed.Zed-Preview",
-            ReleaseChannel::Stable => "dev.zed.Zed",
+            ReleaseChannel::Dev => "dev.sotid.Sotid-Dev",
+            ReleaseChannel::Nightly => "dev.sotid.Sotid-Nightly",
+            ReleaseChannel::Preview => "dev.sotid.Sotid-Preview",
+            ReleaseChannel::Stable => "dev.sotid.Sotid",
         }
     }
 
@@ -241,23 +232,6 @@ impl ReleaseChannel {
             Self::Nightly => Some("nightly=1"),
             Self::Preview => Some("preview=1"),
             Self::Stable => None,
-        }
-    }
-
-    /// Returns the Zed docs URL for this [`ReleaseChannel`] for the given
-    /// `slug`.
-    pub fn docs_url(&self, slug: &str) -> String {
-        let channel_path_segment = match self {
-            Self::Dev | Self::Nightly => Some("nightly"),
-            Self::Preview => Some("preview"),
-            Self::Stable => None,
-        };
-
-        match channel_path_segment {
-            Some(channel) if slug.is_empty() => format!("{ZED_DOCS_URL}/{channel}"),
-            Some(channel) => format!("{ZED_DOCS_URL}/{channel}/{slug}"),
-            None if slug.is_empty() => ZED_DOCS_URL.to_string(),
-            None => format!("{ZED_DOCS_URL}/{slug}"),
         }
     }
 }
@@ -277,30 +251,5 @@ impl FromStr for ReleaseChannel {
             "stable" => ReleaseChannel::Stable,
             _ => return Err(InvalidReleaseChannel),
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ReleaseChannel;
-
-    #[test]
-    fn test_docs_url_for_release_channel() {
-        assert_eq!(
-            ReleaseChannel::Dev.docs_url("settings"),
-            "https://zed.dev/docs/nightly/settings"
-        );
-        assert_eq!(
-            ReleaseChannel::Nightly.docs_url("settings"),
-            "https://zed.dev/docs/nightly/settings"
-        );
-        assert_eq!(
-            ReleaseChannel::Preview.docs_url("settings"),
-            "https://zed.dev/docs/preview/settings"
-        );
-        assert_eq!(
-            ReleaseChannel::Stable.docs_url("settings"),
-            "https://zed.dev/docs/settings"
-        );
     }
 }

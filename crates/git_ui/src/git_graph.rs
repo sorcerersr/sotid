@@ -1,7 +1,7 @@
 pub use crate::commit_context_menu::{CopyCommitSha, CopyCommitTag, OpenCommitView};
 use crate::{
     commit_context_menu::{
-        CUSTOM_GIT_COMMANDS_DOCS_SLUG, CommitContextMenuData, CommitContextMenuSource,
+        CommitContextMenuData, CommitContextMenuSource,
         commit_context_menu, git_context_menu_tasks, git_task_context,
     },
     commit_tooltip::CommitAvatar,
@@ -53,7 +53,7 @@ use sotid_actions::{
 use theme::AccentColors;
 use time::{OffsetDateTime, UtcOffset, format_description::BorrowedFormatItem};
 use ui::{
-    Chip, ColumnWidthConfig, CommonAnimationExt as _, ContextMenu, ContextMenuEntry, DiffStat,
+    Chip, ColumnWidthConfig, CommonAnimationExt as _, ContextMenu, DiffStat,
     Disclosure, Divider, HeaderResizeInfo, HighlightedLabel, IndentGuideColors, ListItem,
     ListItemSpacing, RedistributableColumnsState, ScrollableHandle, Table, TableInteractionState,
     TableRenderContext, TableResizeBehavior, Tooltip, WithScrollbar, bind_redistributable_columns,
@@ -1393,21 +1393,6 @@ impl RefMenuEntry {
         }
 
         menu = menu.separator().header("Custom Commands");
-
-        if self.git_tasks.is_empty() {
-            return menu.item(
-                ContextMenuEntry::new("Learn More")
-                    .icon(IconName::ArrowUpRight)
-                    .icon_color(Color::Muted)
-                    .icon_position(IconPosition::End)
-                    .handler(|_window, cx| {
-                        cx.open_url(&release_channel::docs_url(
-                            CUSTOM_GIT_COMMANDS_DOCS_SLUG,
-                            cx,
-                        ));
-                    }),
-            );
-        }
 
         for (task_source_kind, resolved_task) in self.git_tasks {
             let label = resolved_task.display_label().to_string();

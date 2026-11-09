@@ -36,7 +36,7 @@ use sotid_actions::ExtensionCategoryFilter;
 use crate::components::{ExtensionCard, extension_provides_label};
 
 actions!(
-    zed,
+    sotid,
     [
         /// Installs an extension from a local directory for development.
         InstallDevExtension,
@@ -47,7 +47,7 @@ actions!(
 
 /// Rebuilds an installed dev extension.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, JsonSchema, gpui::Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct RebuildDevExtension {
     /// The ID of the dev extension to rebuild.

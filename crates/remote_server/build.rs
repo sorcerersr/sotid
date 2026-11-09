@@ -11,7 +11,7 @@ fn main() {
         .and_then(|package| package.get("version"))
         .and_then(toml_edit::Item::as_str)
         .expect("zed Cargo.toml must declare a package version string");
-    println!("cargo:rustc-env=ZED_PKG_VERSION={version}");
+    println!("cargo:rustc-env=SOTID_PKG_VERSION={version}");
     println!(
         "cargo:rustc-env=TARGET={}",
         std::env::var("TARGET").unwrap()

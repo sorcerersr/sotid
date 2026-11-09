@@ -111,7 +111,6 @@ pub struct ExtensionStore {
     pub extension_index: ExtensionIndex,
     pub fs: Arc<dyn Fs>,
     pub http_client: Arc<HttpClientWithUrl>,
-    pub _telemetry: Option<Arc<()>>,
     pub reload_tx: UnboundedSender<Option<Arc<str>>>,
     pub reload_complete_senders: Vec<oneshot::Sender<()>>,
     pub installed_dir: PathBuf,
@@ -261,7 +260,7 @@ pub struct ExtensionIndexLanguageEntry {
 }
 
 actions!(
-    zed,
+    sotid,
     [
         /// Reloads all installed extensions.
         ReloadExtensions
@@ -287,7 +286,6 @@ pub fn init(
             fs,
             http_client,
             cx.http_client(),
-            None,
             node_runtime,
             cx,
         )
@@ -328,7 +326,6 @@ impl ExtensionStore {
         fs: Arc<dyn Fs>,
         http_client: Arc<HttpClientWithUrl>,
         builder_client: Arc<dyn HttpClient>,
-        _telemetry: Option<Arc<()>>,
         node_runtime: NodeRuntime,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -360,7 +357,6 @@ impl ExtensionStore {
             wasm_extensions: Vec::new(),
             fs,
             http_client,
-            _telemetry,
             reload_tx,
             tasks: Vec::new(),
 

@@ -145,6 +145,10 @@ pub fn migrate_keymap(text: &str) -> Result<Option<String>> {
             migrations::m_2026_03_23::KEYMAP_PATTERNS,
             &KEYMAP_QUERY_2026_03_23,
         ),
+        MigrationType::TreeSitter(
+            migrations::m_2026_11_09::KEYMAP_PATTERNS,
+            &KEYMAP_QUERY_2026_11_09,
+        ),
     ];
     run_migrations(text, migrations)
 }
@@ -357,6 +361,10 @@ define_query!(
     migrations::m_2026_03_23::KEYMAP_PATTERNS
 );
 define_query!(
+    KEYMAP_QUERY_2026_11_09,
+    migrations::m_2026_11_09::KEYMAP_PATTERNS
+);
+define_query!(
     SETTINGS_QUERY_2026_05_04,
     migrations::m_2026_05_04::SETTINGS_PATTERNS
 );
@@ -519,6 +527,50 @@ mod tests {
             "#,
             ),
         )
+    }
+
+    #[test]
+    fn test_rename_zed_namespace_to_sotid() {
+        assert_migrate_keymap(
+            r#"
+                [
+                    {
+                        "bindings": {
+                            "cmd-1": "zed::OpenSettings",
+                            "cmd-2": ["zed::ToggleFullScreen", { "persist": false }],
+                            "cmd-3": "sotid::OpenSettings"
+                        }
+                    }
+                ]
+            "#,
+            Some(
+                r#"
+                [
+                    {
+                        "bindings": {
+                            "cmd-1": "sotid::OpenSettings",
+                            "cmd-2": ["sotid::ToggleFullScreen", { "persist": false }],
+                            "cmd-3": "sotid::OpenSettings"
+                        }
+                    }
+                ]
+            "#,
+            ),
+        );
+
+        // A keymap that already uses the sotid namespace is left unchanged.
+        assert_migrate_keymap(
+            r#"
+                [
+                    {
+                        "bindings": {
+                            "cmd-1": "sotid::OpenSettings"
+                        }
+                    }
+                ]
+            "#,
+            None,
+        );
     }
 
     #[test]

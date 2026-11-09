@@ -1,23 +1,25 @@
-name: zed
-title: Zed
+name: sotid
+title: Sotid
 base: core24
 version: "$RELEASE_VERSION"
-summary: The editor for what's next
+summary: High-performance, offline code editor
 description: |
-  Zed is a modern open-source code editor, built from the ground up in Rust with
-  a GPU-accelerated renderer. We help you build software faster than ever before.
+  Sotid is a high-performance, offline code editor. It is a fork of Zed with
+  all cloud connections (AI, collaboration, telemetry, update checks, extension
+  marketplace) removed. Sotid keeps only project-related connections: git,
+  package registries, language servers, and SSH remote development.
 grade: stable
 confinement: classic
 compression: lzo
-website: https://zed.dev/
-source-code: https://github.com/zed-industries/zed
-issues: https://github.com/zed-industries/zed/issues
-contact: https://zed.dev/community-links#support-and-feedback
+website: https://github.com/sotid/sotid
+source-code: https://github.com/sotid/sotid
+issues: https://github.com/sotid/sotid/issues
+contact: https://github.com/sotid/sotid
 
 parts:
-  zed:
+  sotid:
     plugin: dump
-    source: "https://github.com/zed-industries/zed/releases/download/v$RELEASE_VERSION/zed-linux-x86_64.tar.gz"
+    source: "https://github.com/sotid/sotid/releases/download/v$RELEASE_VERSION/sotid-linux-x86_64.tar.gz"
 
     organize:
       # These renames seem to not be necessary, but it's tidier.
@@ -26,10 +28,10 @@ parts:
 
     stage-packages:
       - libasound2t64
-      # snapcraft has a lint that this is unused, but without it Zed exits with
+      # snapcraft has a lint that this is unused, but without it Sotid exits with
       # "Missing Vulkan entry points: LibraryLoadFailure" in wgpu.
       - libvulkan1
-      # snapcraft has a lint that this is unused, but without it Zed exits with
+      # snapcraft has a lint that this is unused, but without it Sotid exits with
       # "NoWaylandLib" when run with Wayland.
       - libwayland-client0
       - libxcb1
@@ -52,8 +54,8 @@ parts:
       - -usr/share/man
 
 apps:
-  zed:
-    command: usr/bin/zed
-    common-id: dev.zed.Zed
+  sotid:
+    command: usr/bin/sotid
+    common-id: dev.sotid.Sotid
     environment:
-      ZED_BUNDLE_TYPE: snap
+      SOTID_BUNDLE_TYPE: snap

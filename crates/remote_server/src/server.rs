@@ -112,7 +112,7 @@ pub fn run(command: Commands) -> anyhow::Result<()> {
             let release_channel = *RELEASE_CHANNEL;
             match release_channel {
                 ReleaseChannel::Stable | ReleaseChannel::Preview => {
-                    println!("{}", env!("ZED_PKG_VERSION"))
+                    println!("{}", env!("SOTID_PKG_VERSION"))
                 }
                 ReleaseChannel::Nightly | ReleaseChannel::Dev => {
                     let commit_sha =
@@ -131,7 +131,7 @@ pub fn run(command: Commands) -> anyhow::Result<()> {
 }
 
 pub static VERSION: LazyLock<String> = LazyLock::new(|| match *RELEASE_CHANNEL {
-    ReleaseChannel::Stable | ReleaseChannel::Preview => env!("ZED_PKG_VERSION").to_owned(),
+    ReleaseChannel::Stable | ReleaseChannel::Preview => env!("SOTID_PKG_VERSION").to_owned(),
     ReleaseChannel::Nightly | ReleaseChannel::Dev => {
         let commit_sha = option_env!("SOTID_COMMIT_SHA").unwrap_or("missing-sotid-commit-sha");
         let build_identifier = option_env!("SOTID_BUILD_ID");
@@ -682,7 +682,7 @@ pub fn execute_run(
         settings::init(cx);
         let app_commit_sha = option_env!("SOTID_COMMIT_SHA").map(|s| AppCommitSha::new(s.to_owned()));
         let app_version = AppVersion::load(
-            env!("ZED_PKG_VERSION"),
+            env!("SOTID_PKG_VERSION"),
             option_env!("SOTID_BUILD_ID"),
             app_commit_sha,
         );
@@ -961,7 +961,7 @@ fn cleanup_old_binaries_wsl() {
 fn is_new_version(version: &str) -> bool {
     semver::Version::from_str(version)
         .ok()
-        .zip(semver::Version::from_str(env!("ZED_PKG_VERSION")).ok())
+        .zip(semver::Version::from_str(env!("SOTID_PKG_VERSION")).ok())
         .is_some_and(|(version, current_version)| version >= current_version)
 }
 

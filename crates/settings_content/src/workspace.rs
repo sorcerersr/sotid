@@ -133,7 +133,7 @@ pub struct WorkspaceSettingsContent {
     ///
     /// Default: false
     pub use_system_window_tabs: Option<bool>,
-    /// Which fullscreen mode the `zed::ToggleFullScreen` action enters (macOS only).
+    /// Which fullscreen mode the `sotid::ToggleFullScreen` action enters (macOS only).
     ///
     /// Default: native
     pub fullscreen_mode: Option<FullscreenMode>,

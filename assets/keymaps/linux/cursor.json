@@ -18,19 +18,6 @@
     },
   },
   {
-    "context": "AgentPanel || (MessageEditor > Editor)",
-    "use_key_equivalents": true,
-    "bindings": {
-      "ctrl-i": "workspace::ToggleRightDock",
-      "ctrl-shift-i": "workspace::ToggleRightDock",
-      "ctrl-l": "workspace::ToggleRightDock",
-      "ctrl-shift-l": "workspace::ToggleRightDock",
-      "ctrl-w": "workspace::ToggleRightDock", // technically should close chat
-      "ctrl-shift-backspace": "editor::Cancel",
-      "ctrl-shift-v": "editor::Paste",
-    },
-  },
-  {
     "context": "CallHierarchyPicker > Picker > Editor",
     "use_key_equivalents": true,
     "bindings": {

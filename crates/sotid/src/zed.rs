@@ -628,20 +628,8 @@ fn show_software_emulation_warning_if_needed(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    if specs.is_software_emulated && std::env::var("ZED_ALLOW_EMULATED_GPU").is_err() {
-        let (graphics_api, docs_url, open_url) = if cfg!(target_os = "windows") {
-            (
-                "DirectX",
-                "https://zed.dev/docs/windows",
-                "https://zed.dev/docs/windows",
-            )
-        } else {
-            (
-                "Vulkan",
-                "https://zed.dev/docs/linux",
-                "https://zed.dev/docs/linux#zed-fails-to-open-windows",
-            )
-        };
+    if specs.is_software_emulated && std::env::var("SOTID_ALLOW_EMULATED_GPU").is_err() {
+        let graphics_api = if cfg!(target_os = "windows") { "DirectX" } else { "Vulkan" };
         let message = format!(
             db::indoc! {r#"
             Sotid uses {} for rendering and requires a compatible GPU.
@@ -649,27 +637,21 @@ fn show_software_emulation_warning_if_needed(
             Currently you are using a software emulated GPU ({}) which
             will result in awful performance.
 
-            For troubleshooting see: {}
-            Set ZED_ALLOW_EMULATED_GPU=1 env var to permanently override.
+            Set SOTID_ALLOW_EMULATED_GPU=1 env var to permanently override.
             "#},
-            graphics_api, specs.device_name, docs_url
+            graphics_api, specs.device_name
         );
-        let prompt = window.prompt(
+        // Informational only: the user can dismiss and continue using the app
+        // on the software-emulated GPU; `SOTID_ALLOW_EMULATED_GPU` is the
+        // permanent override. The prompt's answer receiver is intentionally
+        // discarded since no action is taken on dismissal.
+        let _ = window.prompt(
             PromptLevel::Critical,
             "Unsupported GPU",
             Some(&message),
-            &["Skip", "Troubleshoot and Quit"],
+            &["Continue"],
             cx,
         );
-        cx.spawn(async move |_, cx| {
-            if prompt.await == Ok(1) {
-                cx.update(|cx| {
-                    cx.open_url(open_url);
-                    cx.quit();
-                });
-            }
-        })
-        .detach()
     }
 }
 

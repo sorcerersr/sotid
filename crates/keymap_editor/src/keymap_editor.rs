@@ -4110,8 +4110,8 @@ mod tests {
     #[gpui::test]
     async fn test_modifier_search_keeps_matching_shortcuts_after_release(cx: &mut TestAppContext) {
         let keymap_content = r#"[{"bindings": {
-            "ctrl-k": "zed::OpenKeymap",
-            "ctrl": "zed::OpenKeymap"
+            "ctrl-k": "sotid::OpenKeymap",
+            "ctrl": "sotid::OpenKeymap"
         }}]"#;
         let (_fs, keymap_editor, mut cx) = setup_keymap_editor(cx, keymap_content).await;
         let workspace = keymap_editor.read_with(&cx, |editor, _| editor.workspace.clone());
@@ -4140,7 +4140,7 @@ mod tests {
         cx.simulate_modifiers_change(gpui::Modifiers::control());
         cx.run_until_parked();
         keymap_editor.read_with(&cx, |editor, cx| {
-            assert_eq!(visible_rows_for_action(editor, "zed::OpenKeymap").len(), 1);
+            assert_eq!(visible_rows_for_action(editor, "sotid::OpenKeymap").len(), 1);
             let query = editor.current_keystroke_query(cx);
             assert_eq!(query.len(), 1);
             assert!(query[0].key().is_empty());
@@ -4156,7 +4156,7 @@ mod tests {
             assert_eq!(query[0].key(), "control");
             assert!(!query[0].modifiers().modified());
             assert_eq!(
-                visible_rows_for_action(editor, "zed::OpenKeymap").len(),
+                visible_rows_for_action(editor, "sotid::OpenKeymap").len(),
                 2,
                 "Control must find both the standalone binding and Ctrl-K; query: {:?}",
                 query
@@ -4169,7 +4169,7 @@ mod tests {
         });
         cx.run_until_parked();
         keymap_editor.read_with(&cx, |editor, _| {
-            let rows = visible_rows_for_action(editor, "zed::OpenKeymap");
+            let rows = visible_rows_for_action(editor, "sotid::OpenKeymap");
             assert_eq!(rows.len(), 1);
             let binding = &editor.keybindings[editor.matches[rows[0]].candidate_id];
             let keystrokes = binding.keystrokes().expect("binding has keystrokes");
@@ -4183,7 +4183,7 @@ mod tests {
         });
         cx.run_until_parked();
         keymap_editor.read_with(&cx, |editor, _| {
-            assert_eq!(visible_rows_for_action(editor, "zed::OpenKeymap").len(), 2);
+            assert_eq!(visible_rows_for_action(editor, "sotid::OpenKeymap").len(), 2);
         });
     }
 
@@ -4192,12 +4192,12 @@ mod tests {
         let keymap_content = r#"[
     {
         "bindings": {
-            "alt-cmd-shift-c": "zed::OpenKeymap"
+            "alt-cmd-shift-c": "sotid::OpenKeymap"
         }
     },
     {
         "bindings": {
-            "alt-cmd-shift-c": "zed::OpenKeymap"
+            "alt-cmd-shift-c": "sotid::OpenKeymap"
         }
     }
 ]"#;
@@ -4205,7 +4205,7 @@ mod tests {
         let cx = &mut cx;
 
         let rows = keymap_editor.read_with(cx, |editor, _| {
-            visible_rows_for_action(editor, "zed::OpenKeymap")
+            visible_rows_for_action(editor, "sotid::OpenKeymap")
         });
         assert_eq!(
             rows.len(),
@@ -4231,7 +4231,7 @@ mod tests {
         cx.run_until_parked();
 
         let rows = keymap_editor.read_with(cx, |editor, _| {
-            visible_rows_for_action(editor, "zed::OpenKeymap")
+            visible_rows_for_action(editor, "sotid::OpenKeymap")
         });
         assert_eq!(rows.len(), 1, "expected one row remaining after deletion");
     }

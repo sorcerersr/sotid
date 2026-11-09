@@ -531,7 +531,7 @@ mod tests {
     fn test_prepare_pending_bindings_sorts_shorter_chords_first(cx: &mut App) {
         let bindings = prepare_pending_bindings(
             vec![
-                binding_after_first_keystroke("cmd-k z a", "zed::OpenSettings"),
+                binding_after_first_keystroke("cmd-k z a", "sotid::OpenSettings"),
                 binding_after_first_keystroke("cmd-k cmd-shift-t", "theme::ToggleMode"),
             ],
             cx,
@@ -595,8 +595,8 @@ mod tests {
             // Custom bindings are needed to exercise a display collision: é and É
             // are distinct keys, but non-Vim formatting capitalizes both to "É".
             let mut bindings = vec![
-                binding_after_first_keystroke("cmd-k é", "zed::OpenSettings"),
-                binding_after_first_keystroke("cmd-k É", "zed::OpenKeymap"),
+                binding_after_first_keystroke("cmd-k é", "sotid::OpenSettings"),
+                binding_after_first_keystroke("cmd-k É", "sotid::OpenKeymap"),
             ];
             let first = bindings.first().expect("first binding");
             let second = bindings.last().expect("second binding");
@@ -627,8 +627,8 @@ mod tests {
         ui::KeyBinding::set_vim_mode(cx, false);
         let rows = prepare_pending_bindings(
             vec![
-                binding_after_first_keystroke("cmd-k é", "zed::OpenSettings"),
-                binding_after_first_keystroke("cmd-k É", "zed::OpenSettings"),
+                binding_after_first_keystroke("cmd-k é", "sotid::OpenSettings"),
+                binding_after_first_keystroke("cmd-k É", "sotid::OpenSettings"),
             ],
             cx,
         );
@@ -649,9 +649,9 @@ mod tests {
         // A user keymap can extend the default cmd-k cmd-s binding with longer chords.
         let rows = prepare_pending_bindings(
             vec![
-                binding_after_first_keystroke("cmd-k cmd-s", "zed::OpenKeymap"),
-                binding_after_first_keystroke("cmd-k cmd-s cmd-,", "zed::OpenSettings"),
-                binding_after_first_keystroke("cmd-k cmd-s cmd-.", "zed::OpenKeymapFile"),
+                binding_after_first_keystroke("cmd-k cmd-s", "sotid::OpenKeymap"),
+                binding_after_first_keystroke("cmd-k cmd-s cmd-,", "sotid::OpenSettings"),
+                binding_after_first_keystroke("cmd-k cmd-s cmd-.", "sotid::OpenKeymapFile"),
                 binding_after_first_keystroke("cmd-k cmd-o", "workspace::Open"),
                 binding_after_first_keystroke("cmd-k cmd-o cmd-p", "workspace::ReopenLastPicker"),
                 binding_after_first_keystroke("cmd-k z a", "theme::ToggleMode"),

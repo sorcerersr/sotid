@@ -14,7 +14,7 @@ pub fn init() {}
 
 /// Opens a URL in the system's default web browser.
 #[derive(Clone, PartialEq, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct OpenBrowser {
     pub url: Arc<str>,
@@ -22,7 +22,7 @@ pub struct OpenBrowser {
 
 /// Opens a zed:// URL within the application.
 #[derive(Clone, PartialEq, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct OpenSotidUrl {
     pub url: Arc<str>,
@@ -30,13 +30,13 @@ pub struct OpenSotidUrl {
 
 /// Opens the keymap to either add a keybinding or change an existing one
 #[derive(PartialEq, Clone, Default, Action, JsonSchema, Serialize, Deserialize)]
-#[action(namespace = zed, no_json, no_register)]
+#[action(namespace = sotid, no_json, no_register)]
 pub struct ChangeKeybinding {
     pub action: String,
 }
 
 actions!(
-    zed,
+    sotid,
     [
         /// Opens the settings editor.
         #[action(deprecated_aliases = ["sotid_actions::OpenSettingsEditor"])]
@@ -96,7 +96,7 @@ pub enum ExtensionCategoryFilter {
 
 /// Opens the extensions management interface.
 #[derive(PartialEq, Clone, Default, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct Extensions {
     /// Filters the extensions page down to extensions that are in the specified category.
@@ -109,7 +109,7 @@ pub struct Extensions {
 
 /// Opens the ACP registry.
 #[derive(PartialEq, Clone, Default, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct AcpRegistry;
 
@@ -121,7 +121,7 @@ pub struct ShowCallStats;
 
 /// Decreases the font size in the editor buffer.
 #[derive(PartialEq, Clone, Default, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct DecreaseBufferFontSize {
     #[serde(default)]
@@ -130,7 +130,7 @@ pub struct DecreaseBufferFontSize {
 
 /// Increases the font size in the editor buffer.
 #[derive(PartialEq, Clone, Default, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct IncreaseBufferFontSize {
     #[serde(default)]
@@ -139,7 +139,7 @@ pub struct IncreaseBufferFontSize {
 
 /// Opens the settings editor at a specific path.
 #[derive(PartialEq, Clone, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct OpenSettingsAt {
     /// A path to a specific setting (e.g. `theme.mode`)
@@ -151,7 +151,7 @@ pub struct OpenSettingsAt {
 }
 
 #[derive(PartialEq, Clone, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct OpenSettingsPage {
     /// A settings page title (e.g. `AI`).
@@ -178,7 +178,7 @@ pub enum OpenSettingsAtTarget {
 
 /// Resets the buffer font size to the default value.
 #[derive(PartialEq, Clone, Default, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct ResetBufferFontSize {
     #[serde(default)]
@@ -187,7 +187,7 @@ pub struct ResetBufferFontSize {
 
 /// Decreases the font size of the user interface.
 #[derive(PartialEq, Clone, Default, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct DecreaseUiFontSize {
     #[serde(default)]
@@ -196,7 +196,7 @@ pub struct DecreaseUiFontSize {
 
 /// Increases the font size of the user interface.
 #[derive(PartialEq, Clone, Default, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct IncreaseUiFontSize {
     #[serde(default)]
@@ -205,7 +205,7 @@ pub struct IncreaseUiFontSize {
 
 /// Resets the UI font size to the default value.
 #[derive(PartialEq, Clone, Default, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct ResetUiFontSize {
     #[serde(default)]
@@ -214,7 +214,7 @@ pub struct ResetUiFontSize {
 
 /// Resets all zoom levels (UI and buffer font sizes, including in the agent panel) to their default values.
 #[derive(PartialEq, Clone, Default, Debug, Deserialize, JsonSchema, Action)]
-#[action(namespace = zed)]
+#[action(namespace = sotid)]
 #[serde(deny_unknown_fields)]
 pub struct ResetAllZoom {
     #[serde(default)]
@@ -430,8 +430,6 @@ pub mod feedback {
     actions!(
         feedback,
         [
-            /// Opens email client to send feedback to Zed support.
-            EmailZed,
             /// Opens the bug report form.
             FileBugReport,
             /// Opens the feature request form.
@@ -789,18 +787,7 @@ pub mod preview {
 }
 
 pub mod agents_sidebar {
-    use gpui::{Action, actions};
-    use schemars::JsonSchema;
-    use serde::Deserialize;
-
-    /// Toggles the thread switcher popup when the sidebar is focused.
-    #[derive(PartialEq, Clone, Deserialize, JsonSchema, Default, Action)]
-    #[action(namespace = agents_sidebar)]
-    #[serde(deny_unknown_fields)]
-    pub struct ToggleThreadSwitcher {
-        #[serde(default)]
-        pub select_last: bool,
-    }
+    use gpui::actions;
 
     actions!(
         agents_sidebar,

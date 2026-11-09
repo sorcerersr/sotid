@@ -16,7 +16,7 @@ body:
     attributes:
       label: Sotid version and system specs
       description: |
-        Open the command palette in Sotid, then type “zed: copy system specs into clipboard”.
+        Open the command palette in Sotid, then type “sotid: copy system specs into clipboard”.
       placeholder: |
         Sotid: v0.215.0 (Sotid bfe141ea79aa4984028934067ba75c48d99136ae)
         OS: macOS 15.1

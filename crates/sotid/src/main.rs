@@ -303,7 +303,7 @@ fn main() {
             std::env::consts::OS.to_string(),
             String::new(),
         );
-        println!("Zed System Specs (from CLI):\n{}", system_specs);
+        println!("Sotid System Specs (from CLI):\n{}", system_specs);
         return;
     }
 
@@ -1385,7 +1385,7 @@ struct Args {
     /// Prints system specs.
     ///
     /// Useful for submitting issues on GitHub when encountering a bug that
-    /// prevents Zed from starting, so you can't run `zed: copy system specs to
+    /// prevents Sotid from starting, so you can't run `sotid: copy system specs to
     /// clipboard`
     #[arg(long)]
     system_specs: bool,

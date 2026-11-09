@@ -592,14 +592,12 @@
     "quick_actions": true,
     // Whether to show the Selections menu in the editor toolbar.
     "selections_menu": true,
-    // Whether to show agent review buttons in the editor toolbar.
-    "agent_review": true,
     // Whether to show code action buttons in the editor toolbar.
     "code_actions": false,
   },
   // Whether to allow windows to tab together based on the user's tabbing preference (macOS only).
   "use_system_window_tabs": false,
-  // Which fullscreen mode the `zed::ToggleFullScreen` action enters (macOS only).
+  // Which fullscreen mode the `sotid::ToggleFullScreen` action enters (macOS only).
   //
   // 1. Use macOS's native fullscreen, which moves the window into its own Mission Control space.
   //     "native"
